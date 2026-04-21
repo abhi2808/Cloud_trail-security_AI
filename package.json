@@ -1,0 +1,15 @@
+{
+  "name": "cloudtrail-ai-investigator",
+  "version": "1.0.0",
+  "description": "Natural language security investigation tool for AWS CloudTrail logs",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently \"npm run backend\" \"npm run frontend\"",
+    "backend": "cd backend && uvicorn app.main:app --reload --port 8000",
+    "frontend": "cd frontend && npm run dev",
+    "install:all": "cd frontend && npm install"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0"
+  }
+}
