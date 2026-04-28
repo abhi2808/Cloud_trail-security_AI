@@ -61,3 +61,10 @@ class QueryResponse(BaseModel):
     raw_events: list[CloudTrailEvent] = Field(
         default_factory=list, description="List of parsed CloudTrail events"
     )
+    # Agentic fields
+    severity: Optional[str] = Field(default=None, description="NONE|LOW|MEDIUM|HIGH|CRITICAL")
+    evidence: list[str] = Field(default_factory=list, description="Key findings supporting verdict")
+    recommended_actions: list[str] = Field(default_factory=list, description="Specific next steps")
+    steps_taken: list[dict] = Field(default_factory=list, description="Agent investigation steps")
+    iterations: int = Field(default=0, description="Number of ReAct loop iterations used")
+

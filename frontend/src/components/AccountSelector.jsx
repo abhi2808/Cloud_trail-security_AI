@@ -1,9 +1,11 @@
 import React, { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import useAccountStore from '../store/accountStore';
+import useChatStore from '../store/chatStore';
 
 const AccountSelector = () => {
   const { accounts, selectedAccount, fetchAccounts, selectAccount, isLoading } = useAccountStore();
+  const { selectedRegion, setRegion } = useChatStore();
 
   useEffect(() => { fetchAccounts(); }, [fetchAccounts]);
 
@@ -63,7 +65,7 @@ const AccountSelector = () => {
           <option value="" disabled>Select an account...</option>
           {accounts.map(acc => (
             <option key={acc.id} value={acc.id}>
-              {acc.nickname} — {acc.region}
+              {acc.nickname} — {acc.region === 'all' ? 'All Regions' : acc.region}
             </option>
           ))}
         </select>
@@ -73,8 +75,35 @@ const AccountSelector = () => {
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--accent)', fontFamily: 'var(--font-mono)', fontSize: '0.76rem' }}>
             <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: 'var(--accent)', display: 'inline-block', animation: 'pulse-dot 2s infinite' }} />
-            Connected · {selectedAccount.region}
+            Connected
           </div>
+          <select
+            value={selectedRegion}
+            onChange={e => setRegion(e.target.value)}
+            style={{
+              background: 'var(--bg-primary)',
+              border: '1px solid var(--border-subtle)',
+              color: 'var(--text-primary)',
+              padding: '4px 10px', borderRadius: '6px',
+              fontFamily: 'var(--font-sans)', fontSize: '0.82rem',
+              cursor: 'pointer', outline: 'none',
+            }}
+          >
+            <option value="all">All Regions</option>
+            <option value="ap-south-1">ap-south-1</option>
+            <option value="us-east-1">us-east-1</option>
+            <option value="us-east-2">us-east-2</option>
+            <option value="us-west-1">us-west-1</option>
+            <option value="us-west-2">us-west-2</option>
+            <option value="eu-west-1">eu-west-1</option>
+            <option value="eu-west-2">eu-west-2</option>
+            <option value="eu-central-1">eu-central-1</option>
+            <option value="ap-southeast-1">ap-southeast-1</option>
+            <option value="ap-southeast-2">ap-southeast-2</option>
+            <option value="ap-northeast-1">ap-northeast-1</option>
+            <option value="ca-central-1">ca-central-1</option>
+            <option value="sa-east-1">sa-east-1</option>
+          </select>
           <Link to="/dashboard" style={{ color: 'var(--info)', textDecoration: 'none', fontSize: '0.8rem' }}>
             Switch
           </Link>

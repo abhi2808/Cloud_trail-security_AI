@@ -11,7 +11,7 @@ import SuggestedQueries from '../components/SuggestedQueries';
 const ChatPage = () => {
   const { user, logout } = useAuthStore();
   const { selectedAccount } = useAccountStore();
-  const { messages, clearMessages } = useChatStore();
+  const { messages, clearMessages, selectedRegion } = useChatStore();
   const navigate = useNavigate();
 
   const handleLogout = () => { logout(); navigate('/login'); };
@@ -104,7 +104,7 @@ const ChatPage = () => {
                   </div>
                   <div style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: '28px' }}>
                     Investigating <span style={{ color: 'var(--accent)', fontFamily: 'var(--font-mono)' }}>{selectedAccount.nickname}</span>{' '}
-                    <span style={{ color: 'var(--text-tertiary)' }}>({selectedAccount.region})</span>
+                    <span style={{ color: 'var(--text-tertiary)' }}>({selectedRegion === 'all' ? 'All Regions' : selectedRegion})</span>
                   </div>
                   <SuggestedQueries />
                 </>

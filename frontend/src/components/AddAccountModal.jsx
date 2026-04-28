@@ -3,9 +3,20 @@ import useAccountStore from '../store/accountStore';
 import SetupInstructions from './SetupInstructions';
 
 const REGIONS = [
-  'ap-south-1','us-east-1','us-east-2','us-west-1','us-west-2',
-  'eu-west-1','eu-west-2','eu-central-1','ap-southeast-1','ap-southeast-2',
-  'ap-northeast-1','ca-central-1','sa-east-1',
+  { value: 'all', label: 'All Regions (Recommended)' },
+  { value: 'ap-south-1', label: 'ap-south-1' },
+  { value: 'us-east-1', label: 'us-east-1' },
+  { value: 'us-east-2', label: 'us-east-2' },
+  { value: 'us-west-1', label: 'us-west-1' },
+  { value: 'us-west-2', label: 'us-west-2' },
+  { value: 'eu-west-1', label: 'eu-west-1' },
+  { value: 'eu-west-2', label: 'eu-west-2' },
+  { value: 'eu-central-1', label: 'eu-central-1' },
+  { value: 'ap-southeast-1', label: 'ap-southeast-1' },
+  { value: 'ap-southeast-2', label: 'ap-southeast-2' },
+  { value: 'ap-northeast-1', label: 'ap-northeast-1' },
+  { value: 'ca-central-1', label: 'ca-central-1' },
+  { value: 'sa-east-1', label: 'sa-east-1' },
 ];
 
 const inputStyle = {
@@ -24,7 +35,7 @@ const labelStyle = {
 
 const AddAccountModal = ({ onClose }) => {
   const { addAccount, testConnection } = useAccountStore();
-  const [form, setForm] = useState({ nickname: '', region: 'ap-south-1', access_key_id: '', secret_access_key: '' });
+  const [form, setForm] = useState({ nickname: '', region: 'all', access_key_id: '', secret_access_key: '' });
   const [showSecret, setShowSecret] = useState(false);
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState(null);
@@ -104,7 +115,7 @@ const AddAccountModal = ({ onClose }) => {
               <label style={labelStyle}>AWS Region</label>
               <select name="region" value={form.region} onChange={handleChange}
                 style={{ ...inputStyle, cursor: 'pointer' }}>
-                {REGIONS.map(r => <option key={r} value={r}>{r}</option>)}
+                {REGIONS.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
               </select>
             </div>
 

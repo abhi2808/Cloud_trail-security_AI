@@ -53,10 +53,11 @@ async def create_account(request: Request, account_in: AccountCreate):
 async def test_account(request: Request, account_in: AccountCreate):
     # Ensure authenticated
     user_id = get_user_id(request) 
+    test_region = account_in.region if account_in.region and account_in.region != "all" else "ap-south-1"
     client = cloudtrail.get_client_with_credentials(
         access_key_id=account_in.access_key_id,
         secret_key=account_in.secret_access_key,
-        region=account_in.region
+        region=test_region
     )
     try:
         client.list_trails()

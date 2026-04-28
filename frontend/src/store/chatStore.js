@@ -4,7 +4,7 @@ import { postQuery } from '../lib/api';
 const useChatStore = create((set, get) => ({
   messages: [],
   isLoading: false,
-  selectedRegion: 'us-east-1',
+  selectedRegion: 'all',
 
   setRegion: (region) => set({ selectedRegion: region }),
 
@@ -12,7 +12,7 @@ const useChatStore = create((set, get) => ({
     const { messages } = get();
     const useAccountStore = (await import('./accountStore')).default;
     const { selectedAccount } = useAccountStore.getState();
-    const regionToQuery = selectedAccount ? selectedAccount.region : 'us-east-1';
+    const regionToQuery = get().selectedRegion || 'all';
 
     // Add user message immediately
     const userMessage = {
@@ -57,6 +57,11 @@ const useChatStore = create((set, get) => ({
         role: 'assistant',
         content: response.answer,
         timestamp: new Date().toISOString(),
+        severity: response.severity || null,
+        evidence: response.evidence || [],
+        recommended_actions: response.recommended_actions || [],
+        steps_taken: response.steps_taken || [],
+        iterations: response.iterations || 0,
         rawEvents: response.raw_events || [],
         eventsCount: response.events_count || 0,
       };

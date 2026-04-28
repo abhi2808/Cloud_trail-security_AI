@@ -3,7 +3,7 @@ import useAuthStore from '../store/authStore';
 
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL || 'http://localhost:8000',
-  timeout: 30000,
+  timeout: 15000,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -36,13 +36,13 @@ api.interceptors.response.use(
  * @param {string} account_id - Selected AWS account ID
  * @returns {Promise<Object>} QueryResponse with answer, events_count, raw_events
  */
-export const postQuery = async (message, conversationHistory = [], region = 'us-east-1', account_id) => {
+export const postQuery = async (message, conversationHistory = [], region = 'all', account_id) => {
   const response = await api.post('/api/query', {
     message,
     conversation_history: conversationHistory,
     region,
     account_id
-  });
+  }, { timeout: 360000 }); // 6 min — Groq rate-limit retries can add 25-43s per iteration
   return response.data;
 };
 
