@@ -14,7 +14,7 @@ class QueryRequest(BaseModel):
         default_factory=list, description="Previous conversation messages for context"
     )
     region: str = Field(
-        default="us-east-1", description="AWS region to query, or 'all' to query all common regions"
+        default="ap-south-1", description="AWS region to query, or 'all' to query all common regions"
     )
     account_id: str = Field(..., description="The ID of the AWS account to query")
 

@@ -12,7 +12,7 @@ class Settings(BaseSettings):
     """Application settings loaded from environment variables."""
 
     # AWS Configuration
-    aws_region: str = Field(default="us-east-1", description="AWS region for CloudTrail queries")
+    aws_region: str = Field(default="ap-south-1", description="AWS region for CloudTrail queries")
 
     # AI Provider Configuration
     gemini_api_key: str = Field(default="", description="Google Gemini API key")

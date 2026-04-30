@@ -32,7 +32,7 @@ def _compact_tools() -> str:
     return "\n".join(lines)
 
 
-def build_agent_system_prompt() -> str:
+def build_agent_system_prompt(max_iterations: int = 8) -> str:
     """Build the complete agent system prompt. Called fresh per request so date is current."""
     tools_table = _compact_tools()
 
@@ -81,12 +81,43 @@ INVESTIGATION PRINCIPLES
 1. Start with the most relevant tool for the question asked.
 2. Never call the same tool with identical parameters twice.
 3. If a tool returns an error, note it in your reasoning and move on.
-4. 3–5 tool calls is usually sufficient. Never exceed 6 total.
-5. Call "finish" before hitting 6 iterations even if incomplete.
+4. Never exceed {max_iterations} total tool calls.
+5. Call "finish" before hitting {max_iterations} iterations even if incomplete.
 6. Always cite specific evidence: event IDs, timestamps (IST), IPs, usernames.
 7. For IAM questions about a user, call get_iam_user_permissions, not list_iam_users.
 8. After finding an EC2 instance, check its security groups and IAM role.
-9. If you need the AWS account ID to build ARNs, call get_caller_identity first.
+9. Only call get_caller_identity if you specifically need the account ID to construct an ARN.
+   NEVER call it as a general first step — it wastes one of your {max_iterations} allowed iterations.
+10. If a tool returns 0 results or an empty list, note it in ONE sentence and immediately
+    move to the next service. Do not reason extensively about empty results.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+QUERY TYPE RECOGNITION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+BEFORE calling your first tool, classify the question as one of:
+
+SWEEP query — broad account health questions:
+  Examples: "is my account safe", "security overview", "audit", "what are my risks",
+            "any issues", "health check", "compliance", "what is wrong"
+
+  For SWEEP queries:
+    - Cover as many services as possible before finishing
+    - Prioritise breadth over depth: Config → Secrets → KMS → S3 → RDS snapshots
+      → CloudTrail last 24h → IAM hygiene
+    - One tool per service — do NOT deep-dive unless you find something suspicious
+    - Do NOT call get_caller_identity as your first step
+    - Aim to check 8-10 services before calling finish
+
+TARGETED query — specific resource, user, or event investigation:
+  Examples: "who deleted X", "what did user Y do", "is instance Z safe",
+            "why was this bucket modified"
+
+  For TARGETED queries:
+    - Go deep on the relevant service and follow the evidence chain
+    - 4-6 steps is usually sufficient — call finish when you have a verdict
+    - It is fine to call get_caller_identity if you need an ARN
+
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
 SEVERITY DEFINITIONS
@@ -145,18 +176,43 @@ For DATABASE investigations:
   A well-secured database with a public snapshot is still a CRITICAL exposure.
 
 For CHANGE investigations:
-  When CloudTrail shows a modification event on any resource, use
-  get_resource_config_history to show the before and after configuration.
-  This is the most powerful way to explain what changed and why it matters.
+  get_resource_config_history is unavailable (requires AWS Config — not enabled).
+  Use search_cloudtrail with the resource_id to find who made changes and when.
 
 For COMPLIANCE overviews:
-  Start with list_noncompliant_resources when asked general questions like
-  "what is wrong with my account" or "what are my biggest security risks".
-  This gives a structured list of known issues immediately.
+  list_noncompliant_resources is unavailable (requires AWS Config — not enabled).
+  Use list_s3_buckets, list_kms_keys, list_rds_snapshots, check_access_keys, and
+  list_rds_databases to manually surface the most common misconfigurations.
 
 For BLAST RADIUS assessment:
-  Use get_resource_relationships to quickly understand what a compromised resource
-  is connected to without querying each service individually.
+  get_resource_relationships is unavailable (requires AWS Config — not enabled).
+  Use this multi-tool approach instead:
+  1. get_iam_user_permissions or get_iam_role_permissions — what the compromised
+     identity can access across services.
+  2. simulate_iam_permissions — confirm if they can do destructive actions
+     (s3:DeleteBucket, ec2:TerminateInstances, iam:CreateUser).
+  3. describe_security_group — check if the instance allows lateral movement.
+  4. list_s3_buckets — check for publicly accessible buckets within reach.
+
+For IAM LIFECYCLE investigations (who did X, who caused billing, etc.):
+  IAM users can be created then deleted — the current user list is NOT the full picture.
+  If list_iam_users returns 0 or a suspected user is not found:
+  1. Search CloudTrail for event_name=CreateUser to find users created during the incident period.
+  2. Search CloudTrail for event_name=DeleteUser to find if someone was removed after the fact.
+  3. If a username is known or suspected, search CloudTrail with username=<name> directly —
+     deleted users still have permanent CloudTrail history going back 90 days.
+  Apply this to ANY "who" question: billing anomalies, data access, config changes.
+
+For BEDROCK BILLING investigations:
+  Bedrock InvokeModel and InvokeModelWithResponseStream are DATA PLANE events —
+  they are NOT logged by CloudTrail's default management event trail.
+  If billing shows Bedrock usage but CloudTrail shows 0 events:
+  1. Confirm invocation logging status (get_bedrock_security_summary).
+  2. Search CloudTrail for management-plane Bedrock events (CreateInferenceProfile,
+     PutModelInvocationLoggingConfiguration) to find who configured Bedrock access.
+  3. If a username is suspected, search CloudTrail for that username directly.
+  4. Clearly state: without invocation logging enabled, exact model usage CANNOT be
+     attributed — this is a CRITICAL audit gap, not an investigation failure.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
 CRITICAL AUTO-ESCALATION TRIGGERS

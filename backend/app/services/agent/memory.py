@@ -148,7 +148,108 @@ def _summarise_result(tool_name: str, result: dict | list) -> str:
         arn = result.get("arn", "unknown")
         return f"Operating in AWS account {acct} as {arn}."
 
-    # Generic fallback
+    # ── KMS ──────────────────────────────────────────────────────────────────
+    if tool_name == "list_kms_keys":
+        keys = result if isinstance(result, list) else []
+        return f"Found {len(keys)} customer-managed KMS key(s)."
+
+    if tool_name == "get_kms_key_details":
+        kid = result.get("key_id", "unknown")
+        rotation = result.get("rotation_enabled", False)
+        external = result.get("policy_allows_external", False)
+        findings = result.get("security_findings", [])
+        flags = []
+        if not rotation:
+            flags.append("rotation disabled")
+        if external:
+            flags.append("⚠ policy allows external access")
+        flag_str = f" Flags: {', '.join(flags)}." if flags else " No critical findings."
+        return f"KMS key {kid}: {len(findings)} security finding(s).{flag_str}"
+
+    # ── Secrets Manager ───────────────────────────────────────────────────────
+    if tool_name == "list_secrets":
+        secrets = result if isinstance(result, list) else []
+        overdue = sum(1 for s in secrets if s.get("rotation_overdue"))
+        return f"Found {len(secrets)} secret(s). {overdue} overdue for rotation."
+
+    if tool_name == "get_secret_details":
+        name = result.get("name", "unknown")
+        rotation = result.get("rotation_enabled", False)
+        days = result.get("days_since_rotation")
+        external = result.get("policy_allows_external", False)
+        flags = []
+        if not rotation:
+            flags.append("rotation disabled")
+        if days and days > 90:
+            flags.append(f"not rotated in {days} days")
+        if external:
+            flags.append("⚠ policy allows external access")
+        flag_str = f" Flags: {', '.join(flags)}." if flags else " No critical findings."
+        return f"Secret '{name}':{flag_str}"
+
+    if tool_name == "get_secrets_security_summary":
+        total = result.get("total_secrets", 0)
+        disabled = result.get("rotation_disabled_count", 0)
+        overdue = result.get("overdue_rotation_count", 0)
+        return f"Secrets summary: {total} total, {disabled} with rotation disabled, {overdue} overdue."
+
+    # ── RDS ──────────────────────────────────────────────────────────────────
+    if tool_name == "list_rds_databases":
+        dbs = result if isinstance(result, list) else []
+        public = sum(1 for d in dbs if d.get("publicly_accessible"))
+        unencrypted = sum(1 for d in dbs if not d.get("storage_encrypted"))
+        return (
+            f"Found {len(dbs)} RDS instance(s). "
+            f"{public} publicly accessible, {unencrypted} with storage unencrypted."
+        )
+
+    if tool_name == "get_rds_database_details":
+        db_id = result.get("db_identifier", "unknown")
+        public = result.get("publicly_accessible", False)
+        encrypted = result.get("storage_encrypted", False)
+        findings = result.get("security_findings", [])
+        flags = []
+        if public:
+            flags.append("⚠ publicly accessible")
+        if not encrypted:
+            flags.append("storage unencrypted")
+        flag_str = f" Flags: {', '.join(flags)}." if flags else " No critical findings."
+        return f"RDS instance '{db_id}': {len(findings)} finding(s).{flag_str}"
+
+    if tool_name == "list_rds_snapshots":
+        snaps = result if isinstance(result, list) else []
+        public = sum(1 for s in snaps if s.get("is_public"))
+        unencrypted = sum(1 for s in snaps if not s.get("encrypted"))
+        crit = " ⚠ CRITICAL: Public snapshots found!" if public > 0 else ""
+        return (
+            f"Found {len(snaps)} manual RDS snapshot(s). "
+            f"{public} public, {unencrypted} unencrypted.{crit}"
+        )
+
+    # ── Bedrock ───────────────────────────────────────────────────────────────
+    if tool_name == "get_bedrock_security_summary":
+        logging_enabled = result.get("invocation_logging_enabled", False)
+        models = result.get("custom_model_count", 0)
+        flag = "" if logging_enabled else " ⚠ Invocation logging is DISABLED — AI calls are unaudited."
+        return f"Bedrock: {models} custom model(s).{flag}"
+
+    if tool_name == "list_bedrock_foundation_models":
+        models = result if isinstance(result, list) else []
+        return f"Found {len(models)} Bedrock foundation model(s) available in this region."
+
+    # ── SageMaker ─────────────────────────────────────────────────────────────
+    if tool_name == "get_sagemaker_security_summary":
+        endpoints = result.get("endpoint_count", 0)
+        notebooks = result.get("notebook_count", 0)
+        findings = result.get("total_findings", len(result.get("security_findings", [])))
+        return f"SageMaker: {endpoints} endpoint(s), {notebooks} notebook(s). {findings} security finding(s)."
+
+    if tool_name == "list_sagemaker_endpoints":
+        eps = result if isinstance(result, list) else []
+        in_service = sum(1 for e in eps if e.get("status") == "InService")
+        return f"Found {len(eps)} SageMaker endpoint(s), {in_service} currently InService."
+
+    # ── Generic fallback (for any new tools added in future) ──────────────────
     if isinstance(result, list):
         return f"Returned {len(result)} item(s)."
     return "Tool completed successfully."

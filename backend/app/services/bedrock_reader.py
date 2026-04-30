@@ -7,20 +7,47 @@ logger = logging.getLogger(__name__)
 
 
 async def list_foundation_models(session) -> list:
-    """List available Bedrock foundation models with provider and capability info."""
+    """
+    List available Bedrock foundation models including cross-region inference profiles.
+    In regions like ap-south-1, models are accessed via APAC cross-region inference
+    profiles (e.g. apac.anthropic.claude-3-5-sonnet-...) rather than ON_DEMAND.
+    This function fetches both to give a complete picture.
+    """
     try:
         client = session.client("bedrock")
-        resp = client.list_foundation_models()
         models = []
-        for m in resp.get("modelSummaries", []):
-            models.append({
-                "model_id": m.get("modelId"),
-                "model_name": m.get("modelName"),
-                "provider": m.get("providerName"),
-                "input_modalities": m.get("inputModalities", []),
-                "output_modalities": m.get("outputModalities", []),
-                "response_streaming": m.get("responseStreamingSupported", False),
-            })
+
+        # ① Standard ON_DEMAND foundation models
+        try:
+            resp = client.list_foundation_models(byInferenceType="ON_DEMAND")
+            for m in resp.get("modelSummaries", []):
+                models.append({
+                    "model_id": m.get("modelId"),
+                    "model_name": m.get("modelName"),
+                    "provider": m.get("providerName"),
+                    "inference_type": "ON_DEMAND",
+                    "input_modalities": m.get("inputModalities", []),
+                    "output_modalities": m.get("outputModalities", []),
+                    "response_streaming": m.get("responseStreamingSupported", False),
+                })
+        except Exception:
+            pass
+
+        # ② Cross-region inference profiles (used in ap-south-1 as apac.* prefix)
+        try:
+            paginator = client.get_paginator("list_inference_profiles")
+            for page in paginator.paginate(typeEquals="SYSTEM_DEFINED"):
+                for p in page.get("inferenceProfileSummaries", []):
+                    models.append({
+                        "model_id": p.get("inferenceProfileId"),
+                        "model_name": p.get("inferenceProfileName"),
+                        "provider": p.get("inferenceProfileId", "").split(".")[0].upper(),  # e.g. APAC
+                        "inference_type": "CROSS_REGION",
+                        "status": p.get("status"),
+                    })
+        except Exception:
+            pass
+
         return models
     except Exception as e:
         logger.error(f"bedrock list_foundation_models: {type(e).__name__}")

@@ -4,7 +4,7 @@ from typing import Optional
 
 class AccountCreate(BaseModel):
     nickname: str = Field(..., max_length=30)
-    region: str = Field(default="us-east-1")
+    region: str = Field(default="ap-south-1")
     access_key_id: str = Field(..., min_length=20, max_length=20)
     secret_access_key: str = Field(..., min_length=40)
 

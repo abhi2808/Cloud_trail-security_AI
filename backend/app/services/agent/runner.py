@@ -18,7 +18,25 @@ from app.services import iam_reader
 
 logger = logging.getLogger(__name__)
 
-MAX_ITERATIONS = 6  # Lowered from 8 — each iteration costs ~25-43s on Groq free tier
+# Sweep keywords — broad account-health questions need more steps than targeted lookups
+_SWEEP_KEYWORDS = {
+    "safe", "secure", "security", "overview", "audit", "risk", "risks",
+    "everything", "posture", "summary", "health", "check", "issues",
+    "what is wrong", "any issues", "vulnerable", "exposure", "exposed",
+    "hygiene", "compliance", "compliant", "overall", "account",
+}
+
+
+def _get_max_iterations(question: str) -> int:
+    """
+    Return iteration limit based on query breadth.
+    Sweep queries (broad account-health) → 12 steps (Config, Secrets, KMS, S3, RDS, CloudTrail, IAM).
+    Targeted queries (specific resource/user) → 8 steps.
+    """
+    q = question.lower()
+    if any(kw in q for kw in _SWEEP_KEYWORDS):
+        return 12
+    return 8
 
 
 def _make_session(access_key: str, secret_key: str, region: str):
@@ -83,6 +101,7 @@ async def run(
       answer, severity, evidence, recommended_actions,
       steps_taken, iterations, events_count
     """
+    max_iterations = _get_max_iterations(user_question)
     # ── Step 1: Fetch and decrypt account credentials ─────────────────────
     account_doc = await account_repository.get_account_by_id(account_id, user_id)
     if not account_doc:
@@ -98,7 +117,16 @@ async def run(
     if account_region == "all":
         account_region = "ap-south-1"
 
-    session = _make_session(access_key, secret_key, account_region)
+    # Prioritise the UI dropdown selection (query_region) over the stored account region.
+    # When the user picks "ap-south-1" in the UI, ALL service calls (EC2, IAM, CloudWatch…)
+    # must use that region — not whatever region was stored in MongoDB when the account was added.
+    # Fall back to account_region only when the user selected "all" or sent no region.
+    if query_region and query_region != "all":
+        session_region = query_region
+    else:
+        session_region = account_region
+
+    session = _make_session(access_key, secret_key, session_region)
 
     # ── Step 2: Get caller identity (best-effort) ─────────────────────────
     identity = await iam_reader.get_caller_identity(session)
@@ -109,7 +137,7 @@ async def run(
     memory = InvestigationMemory(user_question)
 
     # ── Step 4: Build initial AI messages ─────────────────────────────────
-    system_prompt = build_agent_system_prompt()
+    system_prompt = build_agent_system_prompt(max_iterations=max_iterations)
     messages = [
         {"role": "system", "content": system_prompt},
         {
@@ -125,13 +153,25 @@ async def run(
     iteration = 0
 
     # ── Step 5: ReAct loop ────────────────────────────────────────────────
-    while iteration < MAX_ITERATIONS:
+    while iteration < max_iterations:
 
         # Inject running investigation context after the first step
         if iteration > 0:
             messages.append({
                 "role": "user",
                 "content": memory.build_context_for_ai(),
+            })
+
+        # Warn the agent on its final allowed tool-call iteration
+        if iteration == max_iterations - 1:
+            messages.append({
+                "role": "user",
+                "content": (
+                    f"⚠️ BUDGET NOTICE: This is your final allowed tool call "
+                    f"({max_iterations} of {max_iterations}). "
+                    "After you receive this result, you will get ONE bonus iteration "
+                    "to call 'finish'. Use it to submit your verdict — no further tool calls will be accepted."
+                ),
             })
 
         # Call AI
@@ -246,19 +286,27 @@ async def run(
             "events_count": 0,
         }
 
-    # Loop exhausted — ask for best-effort summary
-    logger.warning(f"Agent loop exhausted after {iteration} iterations, requesting summary.")
+    # ── Bonus iteration: force finish (tool_calls blocked) ───────────────────
+    logger.warning(f"Agent loop exhausted after {iteration} iterations — granting +1 bonus finish iteration.")
     try:
         messages.append({
             "role": "user",
             "content": (
-                "You have reached the iteration limit. "
-                "Summarise the investigation so far and provide your best verdict "
-                "with the available evidence. Respond in FORMAT B (finish)."
+                "🛑 TOOL CALLS ARE NOW CLOSED. "
+                "You have used all allowed tool-call iterations. "
+                "You MUST respond in FORMAT B (finish) RIGHT NOW. "
+                "Summarise all findings from the investigation so far and return your verdict. "
+                "Any response that is not a 'finish' type will be discarded."
             ),
         })
         raw_final = await _call_agent_ai(messages)
         final = json.loads(_clean_json(raw_final))
+
+        # Strictly reject any tool_call attempt in the bonus round
+        if final.get("type") == "tool_call":
+            logger.error("Agent attempted a tool_call in bonus finish iteration — forcing fallback.")
+            raise ValueError("tool_call not allowed in bonus iteration")
+
         return {
             "answer": final.get("answer", "Investigation incomplete — iteration limit reached."),
             "severity": final.get("severity", "MEDIUM"),
@@ -267,16 +315,15 @@ async def run(
                 "Review CloudTrail logs manually for the time period in question."
             ]),
             "steps_taken": memory.to_response_steps(),
-            "iterations": iteration,
+            "iterations": iteration + 1,  # +1 for the bonus round
             "events_count": 0,
         }
     except Exception as e:
-        logger.error(f"Final summary call failed: {e}")
+        logger.error(f"Bonus finish iteration failed: {e}")
         return {
             "answer": (
-                "Investigation reached the maximum step limit. "
-                f"Completed {iteration} investigation steps. "
-                "Please review the steps taken for partial findings."
+                f"Investigation reached the step limit after {iteration} tool calls. "
+                "Please review the investigation steps below for partial findings."
             ),
             "severity": "MEDIUM",
             "evidence": memory.key_findings,

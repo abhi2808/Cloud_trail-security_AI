@@ -37,17 +37,6 @@ ALL_REGIONS = [
     "ca-central-1", "sa-east-1",
 ]
 
-
-def get_client_with_credentials(access_key_id: str, secret_key: str, region: str):
-    """Create a boto3 CloudTrail client using explicit credentials."""
-    return boto3.client(
-        "cloudtrail",
-        aws_access_key_id=access_key_id,
-        aws_secret_access_key=secret_key,
-        region_name=region,
-    )
-
-
 def _parse_event(raw_event: dict) -> CloudTrailEvent:
     """Parse a raw CloudTrail event dict into a CloudTrailEvent Pydantic model."""
     detail = {}
@@ -158,7 +147,11 @@ def _query_single_region(region: str, intent: ExtractedIntent, access_key: str, 
     Query CloudTrail events for a single AWS region.
     Returns parsed CloudTrailEvent list.
     """
-    client = get_client_with_credentials(access_key, secret_key, region)
+    client = boto3.Session(
+        aws_access_key_id=access_key, 
+        aws_secret_access_key=secret_key, 
+        region_name=region
+    ).client("cloudtrail")
     lookup_calls = []
 
     if intent.event_name:

@@ -10,6 +10,21 @@ import asyncio
 import logging
 from datetime import datetime, timezone, timedelta
 
+from app.models.query import ExtractedIntent
+from app.services.cloudtrail import lookup_events
+from app.services import (
+    iam_reader,
+    ec2_reader,
+    cloudwatch,
+    s3_reader,
+    kms_reader,
+    secrets_reader,
+    rds_reader,
+    # config_reader,  # ← Re-enable when AWS Config is activated on the account
+    bedrock_reader,
+    sagemaker_reader,
+)
+
 logger = logging.getLogger(__name__)
 
 # ─── Tool Definitions (injected into agent prompt) ───────────────────────────
@@ -277,52 +292,57 @@ TOOL_DEFINITIONS = [
             "ModifyDBSnapshotAttribute events in CloudTrail."
         ),
     },
-    {
-        "name": "get_resource_config_history",
-        "description": (
-            "Get historical configuration snapshots for any AWS resource (the time machine). "
-            "Shows what a resource looked like at any point in the past. "
-            "Answers: what did this S3 bucket policy look like before it was changed?"
-        ),
-        "parameters": {
-            "resource_type": (
-                "str — AWS Config format: AWS::EC2::Instance | AWS::S3::Bucket | "
-                "AWS::IAM::Role | AWS::RDS::DBInstance | AWS::Lambda::Function | AWS::KMS::Key"
-            ),
-            "resource_id": "str — the resource identifier",
-        },
-        "when_to_use": (
-            "When investigating changes to a resource over time, especially after CloudTrail "
-            "shows a modification event and you want to see the before/after configuration."
-        ),
-    },
-    {
-        "name": "list_noncompliant_resources",
-        "description": (
-            "List all resources currently failing AWS Config compliance rules. "
-            "Quick way to surface known misconfigurations across the account."
-        ),
-        "parameters": {},
-        "when_to_use": (
-            "When asked for a compliance overview or when looking for known misconfigurations "
-            "across the account."
-        ),
-    },
-    {
-        "name": "get_resource_relationships",
-        "description": (
-            "Get all AWS resources connected to a specific resource according to AWS Config. "
-            "Shows what an EC2 instance is attached to, what a security group is used by, etc."
-        ),
-        "parameters": {
-            "resource_type": "str — AWS Config format e.g. AWS::EC2::Instance",
-            "resource_id": "str — the resource identifier",
-        },
-        "when_to_use": (
-            "When you need to understand blast radius or resource dependencies "
-            "without querying each service individually."
-        ),
-    },
+    # ── AWS Config tools (disabled — AWS Config not enabled on this account) ──────
+    # To re-enable: activate AWS Config in your AWS account, then uncomment this block
+    # and uncomment `config_reader` in the imports at the top of this file.
+    #
+    # {
+    #     "name": "get_resource_config_history",
+    #     "description": (
+    #         "Get historical configuration snapshots for any AWS resource (the time machine). "
+    #         "Shows what a resource looked like at any point in the past. "
+    #         "Answers: what did this S3 bucket policy look like before it was changed?"
+    #     ),
+    #     "parameters": {
+    #         "resource_type": (
+    #             "str — AWS Config format: AWS::EC2::Instance | AWS::S3::Bucket | "
+    #             "AWS::IAM::Role | AWS::RDS::DBInstance | AWS::Lambda::Function | AWS::KMS::Key"
+    #         ),
+    #         "resource_id": "str — the resource identifier",
+    #     },
+    #     "when_to_use": (
+    #         "When investigating changes to a resource over time, especially after CloudTrail "
+    #         "shows a modification event and you want to see the before/after configuration."
+    #     ),
+    # },
+    # {
+    #     "name": "list_noncompliant_resources",
+    #     "description": (
+    #         "List all resources currently failing AWS Config compliance rules. "
+    #         "Quick way to surface known misconfigurations across the account."
+    #     ),
+    #     "parameters": {},
+    #     "when_to_use": (
+    #         "When asked for a compliance overview or when looking for known misconfigurations "
+    #         "across the account."
+    #     ),
+    # },
+    # {
+    #     "name": "get_resource_relationships",
+    #     "description": (
+    #         "Get all AWS resources connected to a specific resource according to AWS Config. "
+    #         "Shows what an EC2 instance is attached to, what a security group is used by, etc."
+    #     ),
+    #     "parameters": {
+    #         "resource_type": "str — AWS Config format e.g. AWS::EC2::Instance",
+    #         "resource_id": "str — the resource identifier",
+    #     },
+    #     "when_to_use": (
+    #         "When you need to understand blast radius or resource dependencies "
+    #         "without querying each service individually."
+    #     ),
+    # },
+    # ── End AWS Config tools ──────────────────────────────────────────────────
     {
         "name": "get_bedrock_security_summary",
         "description": (
@@ -390,10 +410,6 @@ async def execute_tool(
     All calls are read-only by design — write APIs are not mapped.
     Returns dict/list on success, {"error": str} on failure.
     """
-    from app.services import iam_reader, ec2_reader, cloudwatch, s3_reader
-    from app.services.cloudtrail import lookup_events
-    from app.models.query import ExtractedIntent
-
     try:
         # ── CloudTrail ──────────────────────────────────────────────────────
         if tool_name == "search_cloudtrail":
@@ -476,76 +492,64 @@ async def execute_tool(
 
         # ── KMS ──────────────────────────────────────────────────────────────
         elif tool_name == "list_kms_keys":
-            from app.services import kms_reader
             return await kms_reader.list_keys(session)
 
         elif tool_name == "get_kms_key_details":
-            from app.services import kms_reader
             return await kms_reader.get_key_details(session, params["key_id"])
 
         # ── Secrets Manager ──────────────────────────────────────────────────
         elif tool_name == "list_secrets":
-            from app.services import secrets_reader
             return await secrets_reader.list_secrets(session)
 
         elif tool_name == "get_secret_details":
-            from app.services import secrets_reader
             return await secrets_reader.get_secret_details(session, params["secret_name"])
 
         elif tool_name == "get_secrets_security_summary":
-            from app.services import secrets_reader
             return await secrets_reader.get_secrets_security_summary(session)
 
         # ── RDS ───────────────────────────────────────────────────────────────
         elif tool_name == "list_rds_databases":
-            from app.services import rds_reader
             return await rds_reader.list_databases(session)
 
         elif tool_name == "get_rds_database_details":
-            from app.services import rds_reader
             return await rds_reader.get_database_details(session, params["db_identifier"])
 
         elif tool_name == "list_rds_snapshots":
-            from app.services import rds_reader
             return await rds_reader.list_snapshots(session)
 
-        # ── AWS Config ───────────────────────────────────────────────────────
-        elif tool_name == "get_resource_config_history":
-            from app.services import config_reader
-            return await config_reader.get_resource_config_history(
-                session,
-                params["resource_type"],
-                params["resource_id"],
-            )
-
-        elif tool_name == "list_noncompliant_resources":
-            from app.services import config_reader
-            return await config_reader.list_noncompliant_resources(session)
-
-        elif tool_name == "get_resource_relationships":
-            from app.services import config_reader
-            return await config_reader.get_resource_relationships(
-                session,
-                params["resource_type"],
-                params["resource_id"],
-            )
+        # ── AWS Config (disabled — AWS Config not enabled on this account) ──────────
+        # To re-enable: uncomment this block and the config_reader import at the top.
+        #
+        # elif tool_name == "get_resource_config_history":
+        #     return await config_reader.get_resource_config_history(
+        #         session,
+        #         params["resource_type"],
+        #         params["resource_id"],
+        #     )
+        #
+        # elif tool_name == "list_noncompliant_resources":
+        #     return await config_reader.list_noncompliant_resources(session)
+        #
+        # elif tool_name == "get_resource_relationships":
+        #     return await config_reader.get_resource_relationships(
+        #         session,
+        #         params["resource_type"],
+        #         params["resource_id"],
+        #     )
+        # ── End AWS Config ────────────────────────────────────────────────────────
 
         # ── Bedrock ──────────────────────────────────────────────────────
         elif tool_name == "get_bedrock_security_summary":
-            from app.services import bedrock_reader
             return await bedrock_reader.get_bedrock_security_summary(session)
 
         elif tool_name == "list_bedrock_foundation_models":
-            from app.services import bedrock_reader
             return await bedrock_reader.list_foundation_models(session)
 
         # ── SageMaker ──────────────────────────────────────────────────
         elif tool_name == "get_sagemaker_security_summary":
-            from app.services import sagemaker_reader
             return await sagemaker_reader.get_sagemaker_security_summary(session)
 
         elif tool_name == "list_sagemaker_endpoints":
-            from app.services import sagemaker_reader
             return await sagemaker_reader.list_endpoints(session)
 
         else:
