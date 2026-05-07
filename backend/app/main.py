@@ -33,7 +33,7 @@ async def lifespan(app: FastAPI):
     logger.info("=" * 60)
     logger.info("🚀 CloudTrail AI Investigator — Starting Up")
     logger.info(f"   AWS Region     : {settings.aws_region}")
-    logger.info(f"   AI Provider    : {settings.ai_provider}")
+    logger.info(f"   AI Provider    : AWS Bedrock ({settings.bedrock_model_id})")
     logger.info(f"   Client URL     : {settings.client_url}")
     logger.info(f"   Server Port    : {settings.port}")
     logger.info("=" * 60)

@@ -11,6 +11,19 @@
         "cloudtrail:ListTrails"
       ],
       "Resource": "*"
+    },
+    {
+      "Sid": "CostExplorerReadOnly",
+      "Effect": "Allow",
+      "Action": [
+        "ce:GetCostAndUsage",
+        "ce:GetDimensionValues",
+        "ce:GetCostForecast",
+        "ce:GetAnomalyMonitors",
+        "ce:GetAnomalies",
+        "ce:ListCostAllocationTags"
+      ],
+      "Resource": "*"
     }
   ]
 }

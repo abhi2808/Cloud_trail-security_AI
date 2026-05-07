@@ -3,7 +3,7 @@ Application configuration using Pydantic BaseSettings.
 All environment variables are declared here with typed fields.
 """
 
-from typing import Literal
+
 from pydantic_settings import BaseSettings
 from pydantic import Field
 
@@ -14,11 +14,13 @@ class Settings(BaseSettings):
     # AWS Configuration
     aws_region: str = Field(default="ap-south-1", description="AWS region for CloudTrail queries")
 
-    # AI Provider Configuration
-    gemini_api_key: str = Field(default="", description="Google Gemini API key")
-    groq_api_key: str = Field(default="", description="Groq API key")
-    ai_provider: Literal["gemini", "groq"] = Field(
-        default="gemini", description="Active AI provider: gemini or groq"
+    # AWS Bedrock — backend credentials (NEVER shared with customer boto3 sessions)
+    bedrock_access_key_id: str = Field(default="", description="AWS access key for Bedrock")
+    bedrock_secret_access_key: str = Field(default="", description="AWS secret key for Bedrock")
+    bedrock_region: str = Field(default="ap-south-1", description="AWS region for Bedrock runtime")
+    bedrock_model_id: str = Field(
+        default="apac.anthropic.claude-3-5-sonnet-20241022-v2:0",
+        description="Bedrock cross-region inference model ID (APAC Claude 3.5 Sonnet v2)",
     )
 
     # Application Configuration

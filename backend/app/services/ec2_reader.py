@@ -136,7 +136,7 @@ async def describe_security_group(session, sg_id: str) -> dict:
         return {"error": str(e), "sg_id": sg_id}
 
 
-async def list_instances(session) -> list[dict]:
+async def list_instances(session) -> list | dict:
     """
     List all EC2 instances with summary info. Paginates automatically.
     """
@@ -157,8 +157,8 @@ async def list_instances(session) -> list[dict]:
                     })
         return instances
     except Exception as e:
-        logger.error(f"list_instances: {type(e).__name__}")
-        return []
+        logger.error(f"list_instances: {type(e).__name__}: {str(e)}")
+        return {"error": f"Failed to list EC2 instances: {str(e)}"}
 
 
 async def get_instance_profile_role(session, instance_profile_arn: str) -> dict:

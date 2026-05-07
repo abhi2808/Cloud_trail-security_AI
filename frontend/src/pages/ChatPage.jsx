@@ -39,7 +39,7 @@ const ChatPage = () => {
           </div>
           <div>
             <div style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1.2 }}>
-              CloudTrail AI Investigator
+              cloudComply Investigator AI
             </div>
           </div>
         </div>

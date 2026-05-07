@@ -57,7 +57,7 @@ export default function HomePage() {
             </svg>
           </div>
           <div>
-            <h1 className="header-title">CloudTrail AI Investigator</h1>
+            <h1 className="header-title">cloudComply Investigator AI</h1>
             <p className="header-subtitle">Natural Language Security Investigation</p>
           </div>
         </div>

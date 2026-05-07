@@ -2,7 +2,7 @@ export const IAM_POLICIES = [
   {
     id: 1,
     label: "CloudSec_Policy-1",
-    description: "CloudTrail, IAM, STS, EC2",
+    description: "CloudTrail, IAM, STS, EC2, EKS",
     policy: {
       "Version": "2012-10-17",
       "Statement": [
@@ -73,6 +73,22 @@ export const IAM_POLICIES = [
             "ec2:DescribeRouteTables",
             "ec2:DescribeInternetGateways",
             "ec2:DescribeNatGateways"
+          ],
+          "Resource": "*"
+        },
+        {
+          "Sid": "EKSMetadataReadOnly",
+          "Effect": "Allow",
+          "Action": [
+            "eks:ListClusters",
+            "eks:DescribeCluster",
+            "eks:ListNodegroups",
+            "eks:DescribeNodegroup",
+            "eks:ListFargateProfiles",
+            "eks:DescribeFargateProfile",
+            "eks:ListAddons",
+            "eks:DescribeAddon",
+            "eks:ListUpdates"
           ],
           "Resource": "*"
         }
@@ -183,7 +199,7 @@ export const IAM_POLICIES = [
   {
     id: 3,
     label: "CloudSec_Policy-3",
-    description: "S3, KMS, Secrets, RDS, Bedrock, SageMaker",
+    description: "S3, KMS, Secrets, RDS, Bedrock, SageMaker, Cost Explorer",
     policy: {
       "Version": "2012-10-17",
       "Statement": [
@@ -326,6 +342,19 @@ export const IAM_POLICIES = [
             "sagemaker:InvokeEndpoint",
             "sagemaker:InvokeEndpointAsync",
             "sagemaker:CreateTrainingJob"
+          ],
+          "Resource": "*"
+        },
+        {
+          "Sid": "CostExplorerReadOnly",
+          "Effect": "Allow",
+          "Action": [
+            "ce:GetCostAndUsage",
+            "ce:GetDimensionValues",
+            "ce:GetCostForecast",
+            "ce:GetAnomalyMonitors",
+            "ce:GetAnomalies",
+            "ce:ListCostAllocationTags"
           ],
           "Resource": "*"
         }

@@ -33,7 +33,7 @@ export default function MessageBubble({ message }) {
         {/* Header */}
         <div className="message-header">
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span className="message-role">{isUser ? 'You' : 'AI Investigator'}</span>
+            <span className="message-role">{isUser ? 'You' : 'cloudComply Investigator AI'}</span>
             {/* Severity badge next to AI label */}
             {!isUser && sev && message.severity !== 'NONE' && (
               <span style={{

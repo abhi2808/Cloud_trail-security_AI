@@ -55,7 +55,7 @@ const DashboardPage = () => {
           <div style={{ color: 'var(--accent)', display: 'flex' }}>
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg>
           </div>
-          <span style={s.navTitle}>CloudTrail AI Investigator</span>
+          <span style={s.navTitle}>cloudComply Investigator AI</span>
         </div>
         <div style={s.navRight}>
           {user?.email && <span style={s.navEmail}>{user.email}</span>}

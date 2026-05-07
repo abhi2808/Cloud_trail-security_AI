@@ -23,7 +23,9 @@ from app.services import (
     # config_reader,  # ← Re-enable when AWS Config is activated on the account
     bedrock_reader,
     sagemaker_reader,
+    eks_reader,
 )
+from app.services import cost_explorer
 
 logger = logging.getLogger(__name__)
 
@@ -373,6 +375,106 @@ TOOL_DEFINITIONS = [
         "parameters": {},
         "when_to_use": "When checking ML inference exposure or CloudTrail shows SageMaker endpoint events.",
     },
+    # ── EKS tools ──────────────────────────────────────────────────────────
+    {
+        "name": "list_eks_clusters",
+        "description": (
+            "List all EKS Kubernetes clusters in the account with security metadata. "
+            "Flags clusters with public API endpoints, missing KMS secrets encryption, "
+            "or disabled control-plane audit logging."
+        ),
+        "parameters": {},
+        "when_to_use": (
+            "When investigating Kubernetes workload security, checking for exposed cluster "
+            "API endpoints, or as part of a broad account security sweep."
+        ),
+    },
+    {
+        "name": "describe_eks_cluster",
+        "description": (
+            "Get full security details for a specific EKS cluster including node groups, "
+            "Fargate profiles, add-ons, endpoint exposure, logging config, and KMS encryption. "
+            "Auto-flags critical findings like public 0.0.0.0/0 API endpoints."
+        ),
+        "parameters": {
+            "cluster_name": "str — EKS cluster name",
+        },
+        "when_to_use": (
+            "When a specific EKS cluster needs investigation, especially after CloudTrail "
+            "shows eks:CreateCluster, eks:UpdateClusterConfig, or eks:DeleteCluster events."
+        ),
+    },
+    # ── End EKS tools ─────────────────────────────────────────────────────────
+    # ── Cost Explorer tools ──────────────────────────────────────────────────
+    {
+        "name": "get_cost_summary",
+        "description": (
+            "Get AWS cost breakdown by service for a date range. Shows total spend, "
+            "per-service costs, and identifies the most expensive service. "
+            "Use for general cost overview questions."
+        ),
+        "parameters": {
+            "start_date": "str — YYYY-MM-DD format",
+            "end_date": "str — YYYY-MM-DD format",
+            "granularity": "str — 'DAILY' or 'MONTHLY', default DAILY",
+        },
+        "when_to_use": (
+            "When asked about overall AWS spend, cost breakdown by service, "
+            "or what is costing the most in a given period."
+        ),
+    },
+    {
+        "name": "get_cost_spike",
+        "description": (
+            "Detect cost spikes by comparing recent spend to baseline. "
+            "Automatically calculates spike factor and severity. "
+            "The primary tool for 'why did my bill increase?' questions."
+        ),
+        "parameters": {
+            "service": "str | None — specific AWS service or null for all",
+            "lookback_days": "int — default 14",
+        },
+        "when_to_use": (
+            "ALWAYS call this first when user mentions a cost spike, unexpected bill, "
+            "or sudden increase. Call with service=null to scan all services, then "
+            "use get_service_cost_timeline to drill into the highest spike service."
+        ),
+    },
+    {
+        "name": "get_cost_anomalies",
+        "description": (
+            "Get AWS-detected cost anomalies from Cost Anomaly Detection monitors. "
+            "AWS's own ML flags these automatically. More reliable than manual spike "
+            "detection for production accounts."
+        ),
+        "parameters": {},
+        "when_to_use": (
+            "Call alongside get_cost_spike for any billing investigation. "
+            "AWS anomalies are pre-validated findings — treat them as high confidence."
+        ),
+    },
+    {
+        "name": "get_service_cost_timeline",
+        "description": (
+            "Get detailed daily cost breakdown and usage types for one specific AWS service. "
+            "Shows peak spending day and what usage types drove the cost. "
+            "Use AFTER identifying which service spiked."
+        ),
+        "parameters": {
+            "service": (
+                "str — exact AWS service name e.g. 'Amazon EC2', 'AWS Lambda', "
+                "'Amazon S3', 'Amazon Bedrock'"
+            ),
+            "start_date": "str — YYYY-MM-DD",
+            "end_date": "str — YYYY-MM-DD",
+        },
+        "when_to_use": (
+            "After get_cost_spike identifies the spiking service, call this for the "
+            "detailed timeline. Then combine with search_cloudtrail on the peak day "
+            "to find who caused it."
+        ),
+    },
+    # ── End Cost Explorer tools ──────────────────────────────────────────────
     {
         "name": "finish",
         "description": (
@@ -416,10 +518,14 @@ async def execute_tool(
             start = _parse_dt(params.get("start_time"))
             end = _parse_dt(params.get("end_time"))
             region_override = params.get("region") or query_region
+            # Guard: agent sometimes passes username as a list — always coerce to str
+            username_raw = params.get("username")
+            if isinstance(username_raw, list):
+                username_raw = username_raw[0] if username_raw else None
             intent = ExtractedIntent(
                 event_name=params.get("event_name"),
                 resource_id=params.get("resource_id"),
-                username=params.get("username"),
+                username=username_raw,
                 start_time=start,
                 end_time=end,
                 aws_region=region_override,
@@ -429,7 +535,11 @@ async def execute_tool(
 
         # ── IAM ─────────────────────────────────────────────────────────────
         elif tool_name == "get_iam_user_permissions":
-            return await iam_reader.get_user_permissions(session, params["username"])
+            # Guard: coerce list → first element
+            uname = params["username"]
+            if isinstance(uname, list):
+                uname = uname[0] if uname else ""
+            return await iam_reader.get_user_permissions(session, uname)
 
         elif tool_name == "get_iam_role_permissions":
             return await iam_reader.get_role_permissions(session, params["role_name"])
@@ -551,6 +661,40 @@ async def execute_tool(
 
         elif tool_name == "list_sagemaker_endpoints":
             return await sagemaker_reader.list_endpoints(session)
+
+        # ── EKS ──────────────────────────────────────────────────────
+        elif tool_name == "list_eks_clusters":
+            return await eks_reader.list_clusters(session)
+
+        elif tool_name == "describe_eks_cluster":
+            return await eks_reader.describe_cluster(session, params["cluster_name"])
+
+        # ── Cost Explorer ────────────────────────────────────────────────
+        elif tool_name == "get_cost_summary":
+            return await cost_explorer.get_cost_summary(
+                session,
+                params["start_date"],
+                params["end_date"],
+                params.get("granularity", "DAILY"),
+            )
+
+        elif tool_name == "get_cost_spike":
+            return await cost_explorer.get_cost_spike(
+                session,
+                params.get("service"),
+                params.get("lookback_days", 14),
+            )
+
+        elif tool_name == "get_cost_anomalies":
+            return await cost_explorer.get_cost_anomalies(session)
+
+        elif tool_name == "get_service_cost_timeline":
+            return await cost_explorer.get_service_cost_timeline(
+                session,
+                params["service"],
+                params["start_date"],
+                params["end_date"],
+            )
 
         else:
             return {"error": f"Unknown tool: {tool_name}", "tool": tool_name}
