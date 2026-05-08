@@ -154,27 +154,19 @@ def _query_single_region(region: str, intent: ExtractedIntent, access_key: str, 
     ).client("cloudtrail")
     lookup_calls = []
 
-    if intent.event_name:
+    # Choose ONE attribute to query AWS with, prioritizing the most specific.
+    if intent.resource_id:
+        params = _build_lookup_params("ResourceName", intent.resource_id, intent.start_time, intent.end_time)
+        lookup_calls.append(("ResourceName", params))
+    elif intent.username:
+        params = _build_lookup_params("Username", intent.username, intent.start_time, intent.end_time)
+        lookup_calls.append(("Username", params))
+    elif intent.event_name:
         event_names = [name.strip() for name in intent.event_name.split(",")]
         for event_name in event_names:
-            params = _build_lookup_params(
-                "EventName", event_name, intent.start_time, intent.end_time
-            )
+            params = _build_lookup_params("EventName", event_name, intent.start_time, intent.end_time)
             lookup_calls.append(("EventName", params))
-
-    if intent.username:
-        params = _build_lookup_params(
-            "Username", intent.username, intent.start_time, intent.end_time
-        )
-        lookup_calls.append(("Username", params))
-
-    if intent.resource_id:
-        params = _build_lookup_params(
-            "ResourceName", intent.resource_id, intent.start_time, intent.end_time
-        )
-        lookup_calls.append(("ResourceName", params))
-
-    if not lookup_calls:
+    else:
         params = {"MaxResults": MAX_RESULTS_PER_CALL}
         if intent.start_time:
             params["StartTime"] = intent.start_time
@@ -193,9 +185,8 @@ def _query_single_region(region: str, intent: ExtractedIntent, access_key: str, 
                 if event_id not in seen_event_ids:
                     seen_event_ids.add(event_id)
                     all_raw_events.append(event)
-        except HTTPException:
-            # Log and skip regions that fail (e.g. not enabled)
-            logger.warning(f"Skipping region {region} due to API error on {call_type}")
+        except Exception as e:
+            logger.warning(f"Skipping region {region} due to API error on {call_type}: {e}")
             return []
 
     parsed_events = []
@@ -206,21 +197,17 @@ def _query_single_region(region: str, intent: ExtractedIntent, access_key: str, 
             logger.warning(f"Failed to parse event in {region}: {e}")
             continue
 
-    # Apply client-side filters
-    if len(lookup_calls) == 1 and lookup_calls[0][0] == "Username":
-        if intent.event_name:
-            event_names = [name.strip() for name in intent.event_name.split(",")]
-            parsed_events = [e for e in parsed_events if e.event_name in event_names]
-    elif len(lookup_calls) == 1 and lookup_calls[0][0] == "ResourceName":
-        if intent.event_name:
-            event_names = [name.strip() for name in intent.event_name.split(",")]
-            parsed_events = [e for e in parsed_events if e.event_name in event_names]
-        if intent.username:
-            username_lower = intent.username.lower()
-            parsed_events = [
-                e for e in parsed_events
-                if e.username and username_lower in e.username.lower()
-            ]
+    # Apply client-side filters for attributes that weren't used in the AWS query
+    if intent.event_name and not lookup_calls[0][0] == "EventName":
+        event_names = [name.strip() for name in intent.event_name.split(",")]
+        parsed_events = [e for e in parsed_events if e.event_name in event_names]
+
+    if intent.username and not lookup_calls[0][0] == "Username":
+        username_lower = intent.username.lower()
+        parsed_events = [
+            e for e in parsed_events
+            if e.username and username_lower in e.username.lower()
+        ]
 
     return parsed_events
 

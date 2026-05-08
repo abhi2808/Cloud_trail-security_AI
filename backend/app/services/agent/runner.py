@@ -3,6 +3,7 @@ ReAct loop orchestrator — the core agent runner.
 Coordinates: prompt building → AI reasoning → tool execution → memory → repeat.
 """
 
+import asyncio
 import json
 import logging
 
@@ -30,12 +31,12 @@ _SWEEP_KEYWORDS = {
 def _get_max_iterations(question: str) -> int:
     """
     Return iteration limit based on query breadth.
-    Sweep queries (broad account-health) → 12 steps (Config, Secrets, KMS, S3, RDS, CloudTrail, IAM).
+    Sweep queries (broad account-health or EC2 security) → 14 steps.
     Targeted queries (specific resource/user) → 8 steps.
     """
     q = question.lower()
     if any(kw in q for kw in _SWEEP_KEYWORDS):
-        return 12
+        return 14
     return 8
 
 
@@ -80,8 +81,8 @@ async def _call_agent_ai(messages: list) -> str:
     This prevents the growing context from triggering Groq 429s.
     """
     from app.services.ai import agent_think
-    if len(messages) > 8:
-        windowed = [messages[0], messages[1]] + messages[-6:]
+    if len(messages) > 14:
+        windowed = [messages[0], messages[1]] + messages[-12:]
     else:
         windowed = messages
     return await agent_think(windowed)
@@ -194,7 +195,8 @@ async def run(
                         "role": "user",
                         "content": (
                             "Your previous response was not valid JSON. "
-                            "Respond ONLY with a single valid JSON object in FORMAT A or FORMAT B. "
+                            "Respond ONLY with a single valid JSON object — one of: "
+                            "FORMAT A (tool_call), FORMAT A2 (tool_calls batch), or FORMAT B (finish). "
                             "No markdown, no preamble."
                         ),
                     })
@@ -215,7 +217,96 @@ async def run(
             finish_payload = parsed
             break
 
-        # ── Tool call ─────────────────────────────────────────────────────
+        # ── Parallel tool calls (fan-out) ─────────────────────────────────
+        if response_type == "tool_calls":
+            calls = parsed.get("calls", [])
+            reasoning = parsed.get("reasoning", "")
+
+            if not calls:
+                logger.warning("Agent returned tool_calls with empty calls array — skipping.")
+                iteration += 1
+                continue
+
+            # Enforce max batch size of 10
+            if len(calls) > 10:
+                logger.warning(f"Parallel batch of {len(calls)} exceeds cap of 10 — truncating.")
+                calls = calls[:10]
+
+            # Validate all tool names before executing anything
+            invalid = [c.get("tool_name") for c in calls if c.get("tool_name") not in TOOL_NAMES]
+            if invalid:
+                messages.append({
+                    "role": "user",
+                    "content": (
+                        f"Unknown tool(s) in parallel batch: {invalid}. "
+                        "All tool_name values must be from AVAILABLE TOOLS."
+                    ),
+                })
+                iteration += 1
+                continue
+
+            logger.info(
+                f"Agent iteration {iteration + 1}: parallel batch of "
+                f"{len(calls)} tools: {[c['tool_name'] for c in calls]}"
+            )
+
+            # Execute all calls simultaneously — one failed call must not abort the rest
+            raw_results = await asyncio.gather(
+                *[
+                    execute_tool(
+                        tool_name=c["tool_name"],
+                        params=c.get("params", {}),
+                        session=session,
+                        account_id=account_id,
+                        user_id=user_id,
+                        query_region=query_region,
+                    )
+                    for c in calls
+                ],
+                return_exceptions=True,
+            )
+
+            # Normalise exceptions → error dicts so the AI sees a consistent structure
+            parallel_results = []
+            for i, res in enumerate(raw_results):
+                if isinstance(res, Exception):
+                    logger.error(f"Parallel call {calls[i]['tool_name']} failed: {res}")
+                    parallel_results.append({
+                        "tool": calls[i]["tool_name"],
+                        "params": calls[i].get("params", {}),
+                        "result": {"error": str(res)},
+                    })
+                else:
+                    parallel_results.append({
+                        "tool": calls[i]["tool_name"],
+                        "params": calls[i].get("params", {}),
+                        "result": res,
+                    })
+
+            # Store as ONE memory entry — AI sees all results together next iteration
+            memory.add_step(
+                tool_name=f"parallel_batch({len(calls)} tools)",
+                params={"calls": [c["tool_name"] for c in calls]},
+                result={"parallel_results": parallel_results},
+                reasoning=reasoning,
+            )
+
+            # Feed all results back as a single combined assistant + user message pair
+            batch_summary = json.dumps(
+                {"type": "tool_calls", "reasoning": reasoning, "calls": [c["tool_name"] for c in calls]},
+            )
+            results_str = json.dumps({"parallel_results": parallel_results}, default=str)[:16000]
+            messages.append({"role": "assistant", "content": batch_summary})
+            messages.append({
+                "role": "user",
+                "content": f"Parallel batch results ({len(calls)} tools):\n{results_str}",
+            })
+
+            # Counts as ONE iteration — the whole point of parallelism
+            iteration += 1
+            continue
+
+        # ── Single tool call ──────────────────────────────────────────────
         if response_type == "tool_call":
             tool_name = parsed.get("tool_name", "")
             params = parsed.get("params", {})
@@ -251,8 +342,9 @@ async def run(
             )
 
             # Add result as assistant message so AI sees it
-            # Cap at 2000 chars to reduce per-call token count and avoid Groq rate limits
-            result_str = json.dumps(result, default=str)[:2000]
+            # Cap at 6000 chars — covers ~20 EC2 instances or a large IAM policy.
+            # The sliding window in _call_agent_ai manages overall context size.
+            result_str = json.dumps(result, default=str)[:6000]
             messages.append({
                 "role": "assistant",
                 "content": json.dumps({
@@ -302,10 +394,10 @@ async def run(
         raw_final = await _call_agent_ai(messages)
         final = json.loads(_clean_json(raw_final))
 
-        # Strictly reject any tool_call attempt in the bonus round
-        if final.get("type") == "tool_call":
-            logger.error("Agent attempted a tool_call in bonus finish iteration — forcing fallback.")
-            raise ValueError("tool_call not allowed in bonus iteration")
+        # Strictly reject any tool_call/tool_calls attempt in the bonus round
+        if final.get("type") in ("tool_call", "tool_calls"):
+            logger.error("Agent attempted a tool call in bonus finish iteration — forcing fallback.")
+            raise ValueError("tool calls not allowed in bonus iteration")
 
         return {
             "answer": final.get("answer", "Investigation incomplete — iteration limit reached."),

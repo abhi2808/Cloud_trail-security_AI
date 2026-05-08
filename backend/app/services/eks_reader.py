@@ -57,7 +57,7 @@ async def list_clusters(session) -> list:
         return clusters
     except Exception as e:
         logger.error(f"eks list_clusters: {type(e).__name__}: {e}")
-        return [{"error": str(e)}]
+        return {"error": f"EKS list failed: {type(e).__name__}: {str(e)}"}
 
 
 async def describe_cluster(session, cluster_name: str) -> dict:

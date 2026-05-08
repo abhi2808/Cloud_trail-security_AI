@@ -56,15 +56,24 @@ class InvestigationMemory:
 
     def to_response_steps(self) -> list[dict]:
         """Return steps in a clean format suitable for the frontend."""
-        return [
-            {
+        formatted_steps = []
+        for s in self.steps:
+            out = {
                 "step": s["step_number"],
                 "tool": s["tool"],
                 "reasoning": s["reasoning"],
                 "summary": s["result_summary"],
             }
-            for s in self.steps
-        ]
+            if isinstance(s.get("result"), dict) and "parallel_results" in s.get("result", {}):
+                out["parallel_results"] = [
+                    {
+                        "tool": pr["tool"],
+                        "summary": _summarise_result(pr["tool"], pr["result"])
+                    }
+                    for pr in s["result"]["parallel_results"]
+                ]
+            formatted_steps.append(out)
+        return formatted_steps
 
 
 # ─── Result summariser ───────────────────────────────────────────────────────
@@ -117,9 +126,22 @@ def _summarise_result(tool_name: str, result: dict | list) -> str:
         return f"Security group {sg_id}: {len(inbound)} inbound rules, {public_rules} open to public internet."
 
     if tool_name == "list_ec2_instances":
-        instances = result if isinstance(result, list) else []
-        running = sum(1 for i in instances if i.get("state") == "running")
-        return f"Found {len(instances)} EC2 instances, {running} currently running."
+        instances = result if isinstance(result, list) else result.get("items", [])
+        running = [i for i in instances if i.get("state") == "running"]
+        # Include instance IDs + SG IDs so the model can plan follow-up calls from memory
+        instance_lines = []
+        for i in instances:
+            iid = i.get("instance_id", "?")
+            state = i.get("state", "?")
+            sgs = i.get("security_group_ids") or i.get("security_groups", [])
+            name = (i.get("tags") or {}).get("Name", "")
+            sg_str = ", ".join(sgs) if sgs else "no SGs"
+            label = f"{iid}" + (f" ({name})" if name else "") + f" [{state}] SGs: {sg_str}"
+            instance_lines.append(label)
+        summary = f"Found {len(instances)} EC2 instances, {len(running)} running."
+        if instance_lines:
+            summary += " Instances: " + " | ".join(instance_lines)
+        return summary
 
     if tool_name == "get_cloudwatch_alarms":
         alarms = result if isinstance(result, list) else []
@@ -134,8 +156,12 @@ def _summarise_result(tool_name: str, result: dict | list) -> str:
 
     if tool_name == "list_s3_buckets":
         buckets = result if isinstance(result, list) else []
-        exposed = sum(1 for b in buckets if not b.get("public_access_blocked"))
-        return f"Found {len(buckets)} S3 bucket(s), {exposed} without public access block."
+        exposed = [b for b in buckets if not b.get("public_access_blocked")]
+        names = ", ".join(b.get("bucket_name", "?") for b in buckets[:50])
+        summary = f"Found {len(buckets)} S3 bucket(s), {len(exposed)} without public access block."
+        if names:
+            summary += f" Buckets: {names}"
+        return summary
 
     if tool_name == "get_s3_bucket_policy":
         name = result.get("bucket_name", "unknown")
@@ -151,7 +177,11 @@ def _summarise_result(tool_name: str, result: dict | list) -> str:
     # ── KMS ──────────────────────────────────────────────────────────────────
     if tool_name == "list_kms_keys":
         keys = result if isinstance(result, list) else []
-        return f"Found {len(keys)} customer-managed KMS key(s)."
+        key_ids = ", ".join(k.get("key_id", k.get("alias", "?")) for k in keys[:15])
+        summary = f"Found {len(keys)} customer-managed KMS key(s)."
+        if key_ids:
+            summary += f" Keys: {key_ids}"
+        return summary
 
     if tool_name == "get_kms_key_details":
         kid = result.get("key_id", "unknown")
@@ -196,12 +226,16 @@ def _summarise_result(tool_name: str, result: dict | list) -> str:
     # ── RDS ──────────────────────────────────────────────────────────────────
     if tool_name == "list_rds_databases":
         dbs = result if isinstance(result, list) else []
-        public = sum(1 for d in dbs if d.get("publicly_accessible"))
+        public = [d for d in dbs if d.get("publicly_accessible")]
         unencrypted = sum(1 for d in dbs if not d.get("storage_encrypted"))
-        return (
+        db_ids = ", ".join(d.get("db_identifier", "?") for d in dbs[:15])
+        summary = (
             f"Found {len(dbs)} RDS instance(s). "
-            f"{public} publicly accessible, {unencrypted} with storage unencrypted."
+            f"{len(public)} publicly accessible, {unencrypted} with storage unencrypted."
         )
+        if db_ids:
+            summary += f" Instances: {db_ids}"
+        return summary
 
     if tool_name == "get_rds_database_details":
         db_id = result.get("db_identifier", "unknown")

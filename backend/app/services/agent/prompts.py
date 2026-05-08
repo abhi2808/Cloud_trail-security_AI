@@ -48,14 +48,24 @@ RESPONSE FORMAT — STRICT JSON ONLY
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 You MUST respond with ONLY a single valid JSON object. No markdown. No preamble. No code fences.
-Every response is exactly one of these two formats:
+Every response is exactly one of these three formats:
 
-FORMAT A — Tool call:
+FORMAT A — Single tool call:
 {{
   "type": "tool_call",
   "reasoning": "Why I am calling this tool and what I expect to find",
   "tool_name": "<name from AVAILABLE TOOLS>",
   "params": {{ ... }}
+}}
+
+FORMAT A2 — Parallel tool calls (multiple independent tools in one step):
+{{
+  "type": "tool_calls",
+  "reasoning": "Why I am fanning out and which tools I am calling",
+  "calls": [
+    {{"tool_name": "<tool1>", "params": {{ ... }}}},
+    {{"tool_name": "<tool2>", "params": {{ ... }}}}
+  ]
 }}
 
 FORMAT B — Final answer (call finish):
@@ -96,6 +106,13 @@ INVESTIGATION PRINCIPLES
     Conclude: "This event is outside CloudTrail's 90-day retention window or occurred
     before logging was enabled." State this clearly in your final answer and move on.
     Repeating the same search a third or fourth time wastes budget and adds no value.
+12. EXHAUST THE LIST — When a list tool (list_ec2_instances, list_s3_buckets, list_kms_keys,
+    list_rds_databases, etc.) returns N items and the question asks about a property of ALL
+    of them ("do any X have Y?", "which X are exposed?", "what roles do they carry?"),
+    you MUST investigate EVERY item in the list, not just the first one that matches.
+    Never call finish immediately after finding one positive result if unchecked items remain.
+    If the budget runs low before you finish, name the unchecked items explicitly in your
+    answer and mark them as requiring manual review.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
 QUERY TYPE RECOGNITION
@@ -138,6 +155,8 @@ TARGETED query — specific resource, user, or event investigation:
               "Actor X created N instances on [dates]. Blast radius: [services]."
     NEVER call describe_ec2_instance as the primary investigation step for creation questions.
     describe_ec2_instance is for "is this specific instance secure?" — not "who created it?".
+
+
 
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -365,4 +384,60 @@ COMMON SERVICE NAME MAPPINGS:
   Bedrock / AI     → Amazon Bedrock
   CloudWatch       → Amazon CloudWatch
   Data Transfer    → AWS Data Transfer
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PARALLEL TOOL EXECUTION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+You can execute multiple independent tools simultaneously in one step
+by returning type "tool_calls" with a "calls" array.
+The entire batch counts as ONE iteration, not N.
+
+USE PARALLEL when the tools are independent of each other —
+the output of one does NOT feed into the input of another:
+
+  After list_ec2_instances returns N instances:
+    → fan out: describe_ec2_instance × all running instances simultaneously
+
+  After describe_ec2_instance × N returns SG IDs and role names:
+    → fan out: describe_security_group × all SG IDs
+             + get_iam_role_permissions × all role names
+             both in the SAME calls array
+
+  After list_s3_buckets:    → get_s3_bucket_policy × all buckets simultaneously
+  After list_kms_keys:      → get_kms_key_details × all key IDs simultaneously
+  After list_secrets:       → get_secret_details × all secret names simultaneously
+  After list_rds_databases: → get_rds_database_details × all DB IDs simultaneously
+  After list_iam_users:     → get_iam_user_permissions × all users simultaneously
+                            + check_access_keys × all users simultaneously
+
+  For broad SWEEP queries (account overview, audit, is it safe):
+    Fan out ALL list calls in one batch first:
+    calls: [list_ec2_instances, list_s3_buckets, list_kms_keys,
+            list_secrets, list_rds_databases, list_rds_snapshots,
+            get_cloudwatch_alarms, get_secrets_security_summary]
+    Then fan out all detail lookups from those results.
+    A full account sweep completes in 3-4 iterations total.
+
+DO NOT USE PARALLEL when the output of one call determines the input of the next:
+  search_cloudtrail → get_iam_user_permissions
+    (need the username from CloudTrail result first)
+  describe_ec2_instance → get_iam_role_permissions
+    (need the role name from describe result first — but once you have ALL
+     role names from a batch of describes, you CAN fan out the role lookups)
+  These stay sequential — use single tool_call for each.
+
+FORMAT for a parallel batch:
+{{
+  "type": "tool_calls",
+  "reasoning": "describing all 5 running instances simultaneously since they are independent",
+  "calls": [
+    {{"tool_name": "describe_ec2_instance", "params": {{"instance_id": "i-097..."}}}},
+    {{"tool_name": "describe_ec2_instance", "params": {{"instance_id": "i-070..."}}}},
+    {{"tool_name": "describe_security_group", "params": {{"sg_id": "sg-009..."}}}}
+  ]
+}}
+
+Max calls in one batch: 10.
+If more than 10 resources, split into batches of 10 — each batch = one iteration.
 """

@@ -139,7 +139,22 @@ export default function InvestigationTimeline({ steps = [], severity, isLoading 
                     background: 'var(--bg-tertiary)', border: '1px solid var(--border)',
                     fontFamily: 'var(--font-mono)',
                   }}>
-                    {step.summary}
+                    {step.tool.startsWith('parallel_batch') && step.parallel_results && step.parallel_results.length > 0 ? (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                        {step.parallel_results.map((pr, idx) => (
+                          <div key={idx} style={{ display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
+                            <span style={{ color: 'var(--text-secondary)' }}>↳</span>
+                            <span style={{ fontWeight: 600, color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>
+                              {TOOL_LABELS[pr.tool] || pr.tool}
+                            </span>
+                            <span style={{ color: 'var(--text-secondary)' }}>→</span>
+                            <span style={{ color: 'var(--text-secondary)' }}>{pr.summary}</span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      step.summary
+                    )}
                   </div>
                 </div>
               </div>

@@ -19,8 +19,8 @@ class Settings(BaseSettings):
     bedrock_secret_access_key: str = Field(default="", description="AWS secret key for Bedrock")
     bedrock_region: str = Field(default="ap-south-1", description="AWS region for Bedrock runtime")
     bedrock_model_id: str = Field(
-        default="apac.anthropic.claude-3-5-sonnet-20241022-v2:0",
-        description="Bedrock cross-region inference model ID (APAC Claude 3.5 Sonnet v2)",
+        default="apac.anthropic.claude-3-5-haiku-20241022-v1:0",
+        description="Bedrock cross-region inference model ID (APAC Claude 3.5 Haiku v1)",
     )
 
     # Application Configuration

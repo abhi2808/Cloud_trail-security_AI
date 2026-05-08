@@ -517,6 +517,12 @@ async def execute_tool(
         if tool_name == "search_cloudtrail":
             start = _parse_dt(params.get("start_time"))
             end = _parse_dt(params.get("end_time"))
+            
+            # If the AI rounds end_time down to midnight, bump it to the end of the day 
+            # so we don't accidentally exclude today's events.
+            if end and end.hour == 0 and end.minute == 0 and end.second == 0:
+                end = end.replace(hour=23, minute=59, second=59)
+
             region_override = params.get("region") or query_region
             # Guard: agent sometimes passes username as a list — always coerce to str
             username_raw = params.get("username")
@@ -595,7 +601,7 @@ async def execute_tool(
 
         # ── S3 ───────────────────────────────────────────────────────────────
         elif tool_name == "list_s3_buckets":
-            return await s3_reader.list_buckets_summary(session)
+            return await s3_reader.list_buckets_summary(session, query_region=query_region)
 
         elif tool_name == "get_s3_bucket_policy":
             return await s3_reader.get_bucket_policy_summary(session, params["bucket_name"])

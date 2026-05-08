@@ -89,14 +89,15 @@ async def get_cost_summary(
             "anomalies_detected": [],
         }
 
-    except client.exceptions.BillExpirationException:
-        logger.warning("Cost Explorer not enabled on this account.")
-        return {
-            "error": (
-                "Cost Explorer not enabled on this account. "
-                "Enable it in AWS Console → Billing → Cost Explorer."
-            )
-        }
+    except Exception as e:
+        if "BillExpirationException" in type(e).__name__:
+            logger.warning("Cost Explorer not enabled on this account.")
+            return {
+                "error": (
+                    "Cost Explorer not enabled on this account. "
+                    "Enable it in AWS Console → Billing → Cost Explorer."
+                )
+            }
     except Exception as e:
         error_msg = str(e)
         if "not enabled" in error_msg.lower() or "opt in" in error_msg.lower():
