@@ -1,36 +1,69 @@
 import { useState, useEffect } from 'react';
+import { motion } from 'framer-motion';
+import { Shield } from 'lucide-react';
 
-const thinkingStages = [
+const stages = [
   'Parsing your query...',
   'Querying CloudTrail...',
-  'Analyzing events...',
+  'Cross-referencing services...',
+  'Analyzing findings...',
 ];
+
+const ease = [0.16, 1, 0.3, 1];
 
 export default function ThinkingIndicator() {
   const [stageIndex, setStageIndex] = useState(0);
 
   useEffect(() => {
     const interval = setInterval(() => {
-      setStageIndex((prev) => (prev + 1) % thinkingStages.length);
-    }, 2000);
+      setStageIndex((prev) => (prev + 1) % stages.length);
+    }, 2200);
     return () => clearInterval(interval);
   }, []);
 
   return (
-    <div className="thinking-indicator">
-      <div className="thinking-avatar">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-        </svg>
+    <motion.div
+      className="thinking-wrap"
+      initial={{ opacity: 0, y: 12, filter: 'blur(4px)' }}
+      animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+      transition={{ duration: 0.5, ease }}
+    >
+      <div className="thinking-header">
+        <Shield size={13} strokeWidth={1.5} style={{ color: 'var(--text-dim)' }} />
+        <span style={{ fontSize: '0.72rem', fontWeight: 500, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+          AI Investigator
+        </span>
       </div>
-      <div className="thinking-content">
+      <div className="thinking-card">
         <div className="thinking-dots">
-          <span className="dot dot-1" />
-          <span className="dot dot-2" />
-          <span className="dot dot-3" />
+          {[0, 1, 2].map((i) => (
+            <motion.span
+              key={i}
+              className="thinking-dot"
+              animate={{
+                opacity: [0.25, 1, 0.25],
+                scale: [0.8, 1, 0.8],
+              }}
+              transition={{
+                duration: 1.4,
+                repeat: Infinity,
+                ease: 'easeInOut',
+                delay: i * 0.18,
+              }}
+            />
+          ))}
         </div>
-        <span className="thinking-text">{thinkingStages[stageIndex]}</span>
+        <motion.span
+          key={stageIndex}
+          className="thinking-text"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.4 }}
+        >
+          {stages[stageIndex]}
+        </motion.span>
       </div>
-    </div>
+    </motion.div>
   );
 }

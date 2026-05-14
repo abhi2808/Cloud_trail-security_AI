@@ -1,105 +1,98 @@
 import React from 'react';
+import { motion } from 'framer-motion';
+import { Shield, ShieldAlert, ShieldX, Info, CheckCircle, ChevronRight } from 'lucide-react';
 import EventCard from './EventCard';
 import InvestigationTimeline from './InvestigationTimeline';
 
-const SEVERITY_CONFIG = {
-  CRITICAL: { color: '#ff4444', bg: 'rgba(255,68,68,0.12)', border: 'rgba(255,68,68,0.3)',  icon: '🔴' },
-  HIGH:     { color: '#ff8c00', bg: 'rgba(255,140,0,0.12)', border: 'rgba(255,140,0,0.3)',  icon: '🟠' },
-  MEDIUM:   { color: '#ffd700', bg: 'rgba(255,215,0,0.10)', border: 'rgba(255,215,0,0.3)',  icon: '🟡' },
-  LOW:      { color: '#58a6ff', bg: 'rgba(88,166,255,0.10)', border: 'rgba(88,166,255,0.3)', icon: '🔵' },
-  NONE:     { color: '#00ff88', bg: 'rgba(0,255,136,0.08)', border: 'rgba(0,255,136,0.25)', icon: '🟢' },
+const SEV = {
+  CRITICAL: { color: 'var(--sev-critical)', bg: 'rgba(248,113,113,0.1)',  border: 'rgba(248,113,113,0.3)', label: 'CRITICAL' },
+  HIGH:     { color: 'var(--sev-high)',     bg: 'rgba(251,146,60,0.1)',   border: 'rgba(251,146,60,0.3)',  label: 'HIGH' },
+  MEDIUM:   { color: 'var(--sev-medium)',   bg: 'rgba(252,211,77,0.08)',  border: 'rgba(252,211,77,0.28)', label: 'MEDIUM' },
+  LOW:      { color: 'var(--sev-low)',      bg: 'rgba(96,165,250,0.08)',  border: 'rgba(96,165,250,0.25)', label: 'LOW' },
+  NONE:     { color: 'var(--sev-none)',     bg: 'rgba(74,222,128,0.06)',  border: 'rgba(74,222,128,0.22)', label: 'CLEAR' },
 };
+
+const ease = [0.16, 1, 0.3, 1];
+
+function SeverityBadge({ severity }) {
+  if (!severity) return null;
+  const s = SEV[severity] || SEV.NONE;
+  return (
+    <span className="sev-badge" style={{ color: s.color, background: s.bg, borderColor: s.border }}>
+      {s.label}
+    </span>
+  );
+}
 
 export default function MessageBubble({ message }) {
   const isUser = message.role === 'user';
-  const sev = message.severity ? SEVERITY_CONFIG[message.severity] : null;
+
+  if (isUser) {
+    return (
+      <motion.div
+        className="msg-user"
+        initial={{ opacity: 0, y: 12, filter: 'blur(4px)' }}
+        animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+        transition={{ duration: 0.5, ease }}
+      >
+        <div className="msg-user-bubble">
+          <div className="msg-user-text">{message.content}</div>
+          <div className="msg-user-time">
+            {new Date(message.timestamp).toLocaleTimeString('en-IN', {
+              timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit',
+            })}
+          </div>
+        </div>
+      </motion.div>
+    );
+  }
 
   return (
-    <div className={`message-bubble ${isUser ? 'message-user' : 'message-assistant'}`}>
-      <div className="message-avatar">
-        {isUser ? (
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-            <circle cx="12" cy="7" r="4" />
-          </svg>
-        ) : (
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-          </svg>
+    <motion.div
+      className="msg-ai"
+      initial={{ opacity: 0, y: 12, filter: 'blur(4px)' }}
+      animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+      transition={{ duration: 0.5, ease }}
+    >
+      <div className="msg-ai-header">
+        <Shield size={13} strokeWidth={1.5} style={{ color: 'var(--text-dim)' }} />
+        <span className="msg-ai-label">AI Investigator</span>
+        {message.severity && message.severity !== 'NONE' && (
+          <SeverityBadge severity={message.severity} />
         )}
       </div>
 
-      <div className="message-content-wrapper">
-        {/* Header */}
-        <div className="message-header">
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span className="message-role">{isUser ? 'You' : 'cloudComply Investigator AI'}</span>
-            {/* Severity badge next to AI label */}
-            {!isUser && sev && message.severity !== 'NONE' && (
-              <span style={{
-                fontSize: '0.65rem', fontWeight: 700, padding: '2px 6px',
-                borderRadius: '4px', letterSpacing: '0.05em', textTransform: 'uppercase',
-                background: sev.bg, border: `1px solid ${sev.border}`, color: sev.color,
-              }}>
-                {sev.icon} {message.severity}
-              </span>
-            )}
-          </div>
-          <span className="message-time">
-            {new Date(message.timestamp).toLocaleTimeString('en-IN', {
-              timeZone: 'Asia/Kolkata',
-              hour: '2-digit',
-              minute: '2-digit',
-            })}
-          </span>
-        </div>
+      <div className="msg-ai-card">
+        <div className="msg-ai-text">{message.content}</div>
 
-        {/* Message text */}
-        <div className="message-text">
-          {message.content.split('\n').map((line, i) => (
-            <span key={i}>
-              {line}
-              {i < message.content.split('\n').length - 1 && <br />}
-            </span>
-          ))}
-        </div>
-
-        {/* Investigation Timeline */}
-        {!isUser && message.steps_taken && message.steps_taken.length > 0 && (
-          <InvestigationTimeline
-            steps={message.steps_taken}
-            severity={message.severity}
-            isLoading={false}
-          />
+        {message.steps_taken && message.steps_taken.length > 0 && (
+          <InvestigationTimeline steps={message.steps_taken} severity={message.severity} />
         )}
 
-        {/* Recommended Actions */}
-        {!isUser && message.recommended_actions && message.recommended_actions.length > 0 && (
-          <div style={{
-            marginTop: '12px', padding: '12px 14px', borderRadius: '8px',
-            background: 'rgba(88,166,255,0.05)', border: '1px solid rgba(88,166,255,0.2)',
-          }}>
-            <div style={{
-              fontSize: '0.72rem', fontWeight: 700, color: '#58a6ff',
-              textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '8px',
-            }}>
-              ✅ Recommended Actions
+        {message.recommended_actions && message.recommended_actions.length > 0 && (
+          <div className="rec-actions">
+            <div className="rec-actions-title">
+              <ChevronRight size={12} strokeWidth={2} />
+              Recommended Actions
             </div>
-            <ol style={{ margin: 0, paddingLeft: '18px', display: 'flex', flexDirection: 'column', gap: '5px' }}>
+            <ol>
               {message.recommended_actions.map((action, i) => (
-                <li key={i} style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-                  {action}
-                </li>
+                <li key={i}>{action}</li>
               ))}
             </ol>
           </div>
         )}
 
-        {/* Raw Events (legacy / backward compat) */}
-        {!isUser && message.rawEvents && message.rawEvents.length > 0 && (
+        {message.rawEvents && message.rawEvents.length > 0 && (
           <EventCard events={message.rawEvents} count={message.eventsCount} />
         )}
+
+        <div className="msg-ai-time">
+          {new Date(message.timestamp).toLocaleTimeString('en-IN', {
+            timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit',
+          })}
+        </div>
       </div>
-    </div>
+    </motion.div>
   );
 }

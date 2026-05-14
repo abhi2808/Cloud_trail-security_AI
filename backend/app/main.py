@@ -58,7 +58,7 @@ app.add_middleware(AuthMiddleware)
 # Add CORS middleware — must be added AFTER AuthMiddleware so it runs FIRST
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[settings.client_url, "http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_origins=[settings.client_url, "http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:5174", "http://127.0.0.1:5174", "http://localhost:5175"],
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["Content-Type", "X-App-Key", "Authorization"],

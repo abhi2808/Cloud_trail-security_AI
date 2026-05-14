@@ -10,7 +10,16 @@ const useAccountStore = create((set, get) => ({
     set({ isLoading: true });
     try {
       const response = await api.get('/api/accounts');
-      set({ accounts: response.data, isLoading: false });
+      const accounts = response.data;
+      set(state => ({
+        accounts,
+        isLoading: false,
+        // Auto-select: keep existing if still valid, otherwise pick first
+        selectedAccount:
+          state.selectedAccount && accounts.find(a => a.id === state.selectedAccount.id)
+            ? state.selectedAccount
+            : accounts.length > 0 ? accounts[0] : null,
+      }));
     } catch (error) {
       set({ isLoading: false });
       console.error('Failed to fetch accounts', error);

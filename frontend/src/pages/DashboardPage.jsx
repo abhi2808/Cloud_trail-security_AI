@@ -1,36 +1,20 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
+import { motion } from 'framer-motion';
+import { Shield, Plus, ArrowRight, CheckCircle, AlertCircle, Trash2, LogOut, MessageSquare } from 'lucide-react';
 import useAuthStore from '../store/authStore';
 import useAccountStore from '../store/accountStore';
 import AddAccountModal from '../components/AddAccountModal';
+import GalaxyBackground from '../components/GalaxyBackground';
 
-const s = {
-  page: { minHeight: '100vh', background: 'var(--bg-primary)', display: 'flex', flexDirection: 'column', fontFamily: 'var(--font-sans)' },
-  nav: { background: 'var(--bg-secondary)', borderBottom: '1px solid var(--border)', padding: '12px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 },
-  navTitle: { fontSize: '1.15rem', fontWeight: 700, background: 'linear-gradient(90deg, #58a6ff, #00ff88)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' },
-  navRight: { display: 'flex', alignItems: 'center', gap: '20px' },
-  navEmail: { color: 'var(--text-secondary)', fontSize: '0.82rem' },
-  logoutBtn: { background: 'none', border: '1px solid var(--border-subtle)', color: 'var(--text-secondary)', padding: '5px 12px', borderRadius: '6px', cursor: 'pointer', fontSize: '0.82rem', fontFamily: 'var(--font-sans)', transition: 'all 0.2s' },
-  main: { flex: 1, maxWidth: '1100px', width: '100%', margin: '0 auto', padding: '40px 24px' },
-  topRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '36px', flexWrap: 'wrap', gap: '16px' },
-  pageTitle: { fontSize: '2rem', fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-0.03em', margin: 0 },
-  pageSubtitle: { color: 'var(--text-secondary)', fontSize: '0.88rem', marginTop: '6px' },
-  addBtn: { display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 20px', background: 'rgba(88,166,255,0.12)', border: '1px solid rgba(88,166,255,0.3)', color: '#58a6ff', borderRadius: '8px', cursor: 'pointer', fontFamily: 'var(--font-sans)', fontSize: '0.88rem', fontWeight: 600, transition: 'all 0.2s', whiteSpace: 'nowrap' },
-  grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '20px' },
-  card: { background: 'var(--bg-secondary)', border: '1px solid var(--border-subtle)', borderRadius: '12px', padding: '24px', position: 'relative', overflow: 'hidden', transition: 'border-color 0.2s, box-shadow 0.2s' },
-  cardTop: { position: 'absolute', top: 0, left: 0, width: '100%', height: '2px', background: 'linear-gradient(90deg, var(--accent), transparent)' },
-  cardNick: { fontSize: '1.15rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '16px', paddingRight: '32px' },
-  cardMeta: { fontSize: '0.8rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' },
-  regionBadge: { background: 'var(--bg-primary)', border: '1px solid var(--border)', padding: '2px 8px', borderRadius: '4px', fontFamily: 'var(--font-mono)', fontSize: '0.72rem', color: 'var(--text-secondary)' },
-  cardFooter: { display: 'flex', alignItems: 'center', marginTop: '20px', paddingTop: '16px', borderTop: '1px solid var(--border)' },
-  verifiedTag: { display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--accent)', fontSize: '0.82rem', fontWeight: 500 },
-  unverifiedTag: { display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--warning)', fontSize: '0.82rem', fontWeight: 500 },
-  deleteBtn: { position: 'absolute', top: '16px', right: '16px', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', padding: '4px', borderRadius: '4px', display: 'flex', transition: 'color 0.2s' },
-  emptyCard: { background: 'var(--bg-secondary)', border: '1px solid var(--border-subtle)', borderRadius: '16px', padding: '48px 24px', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center' },
-  emptyIcon: { width: '64px', height: '64px', borderRadius: '50%', background: 'var(--accent-glow)', border: '1px solid rgba(0,255,136,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--accent)', marginBottom: '20px' },
-  emptyTitle: { fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '8px' },
-  emptySubtitle: { color: 'var(--text-secondary)', fontSize: '0.88rem', maxWidth: '360px', marginBottom: '24px' },
-  proceedBtn: { display: 'flex', alignItems: 'center', gap: '10px', padding: '14px 32px', background: 'rgba(0,255,136,0.12)', border: '1px solid rgba(0,255,136,0.3)', color: 'var(--accent)', borderRadius: '10px', cursor: 'pointer', fontFamily: 'var(--font-sans)', fontSize: '0.95rem', fontWeight: 700, transition: 'all 0.2s', float: 'right' },
+const ease = [0.16, 1, 0.3, 1];
+
+const cardVariants = {
+  initial: { opacity: 0, y: 20, filter: 'blur(4px)' },
+  animate: (i) => ({
+    opacity: 1, y: 0, filter: 'blur(0px)',
+    transition: { duration: 0.55, ease, delay: i * 0.07 },
+  }),
 };
 
 const DashboardPage = () => {
@@ -43,104 +27,152 @@ const DashboardPage = () => {
 
   const handleLogout = () => { logout(); navigate('/login'); };
   const handleDelete = async (id) => {
-    if (window.confirm('Remove this account?')) {
+    if (window.confirm('Remove this AWS account?')) {
       try { await deleteAccount(id); } catch { alert('Failed to delete account'); }
     }
   };
 
   return (
-    <div style={s.page}>
-      <nav style={s.nav}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <div style={{ color: 'var(--accent)', display: 'flex' }}>
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg>
-          </div>
-          <span style={s.navTitle}>cloudComply Investigator AI</span>
+    <div className="dashboard-layout" style={{ position: 'relative' }}>
+      <GalaxyBackground variant="chat" />
+
+      {/* Nav */}
+      <nav className="dash-nav" style={{ position: 'relative', zIndex: 10 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <Shield size={18} strokeWidth={1.5} style={{ color: 'var(--text-muted)' }} />
+          <span className="dash-nav-logo">CloudComply <span className="ai">AI</span></span>
         </div>
-        <div style={s.navRight}>
-          {user?.email && <span style={s.navEmail}>{user.email}</span>}
-          <button style={s.logoutBtn} onClick={handleLogout}
-            onMouseEnter={e => { e.target.style.color = 'var(--text-primary)'; e.target.style.borderColor = 'var(--text-secondary)'; }}
-            onMouseLeave={e => { e.target.style.color = 'var(--text-secondary)'; e.target.style.borderColor = 'var(--border-subtle)'; }}>
-            Logout
+        <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
+          {user?.email && (
+            <span style={{ color: 'var(--text-dim)', fontSize: '0.78rem', fontFamily: 'var(--font-mono)' }}>
+              {user.email}
+            </span>
+          )}
+          <button
+            onClick={handleLogout}
+            style={{
+              background: 'none', border: '1px solid rgba(255,255,255,0.08)', color: 'var(--text-muted)',
+              padding: '5px 12px', borderRadius: 'var(--r-sm)', cursor: 'pointer',
+              fontSize: '0.8rem', fontFamily: 'var(--font-sans)', display: 'flex', alignItems: 'center', gap: 6,
+              transition: 'all 0.2s',
+            }}
+            onMouseEnter={e => { e.currentTarget.style.color = 'var(--text-primary)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.18)'; }}
+            onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-muted)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)'; }}
+          >
+            <LogOut size={13} strokeWidth={1.5} />
+            Sign out
           </button>
         </div>
       </nav>
 
-      <main style={s.main}>
-        <div style={s.topRow}>
-          <div>
-            <h2 style={s.pageTitle}>AWS Accounts</h2>
-            <p style={s.pageSubtitle}>Manage the accounts you want to investigate</p>
+      {/* Main */}
+      <main className="dash-main" style={{ position: 'relative', zIndex: 1 }}>
+        <motion.div
+          initial={{ opacity: 0, y: 16, filter: 'blur(4px)' }}
+          animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+          transition={{ duration: 0.55, ease }}
+        >
+          <div className="dash-toprow">
+            <div>
+              <h2 className="dash-page-title">AWS Accounts</h2>
+              <p className="dash-page-sub">Manage accounts for investigation</p>
+            </div>
+            <button className="dash-add-btn" onClick={() => setShowAddModal(true)}>
+              <Plus size={15} strokeWidth={2} />
+              Add Account
+            </button>
           </div>
-          <button style={s.addBtn} onClick={() => setShowAddModal(true)}
-            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(88,166,255,0.2)'; }}
-            onMouseLeave={e => { e.currentTarget.style.background = 'rgba(88,166,255,0.12)'; }}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M12 4v16m8-8H4"/></svg>
-            Add Account
-          </button>
-        </div>
+        </motion.div>
 
         {isLoading && accounts.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '80px 0', color: 'var(--text-tertiary)' }}>Loading accounts...</div>
-        ) : accounts.length === 0 ? (
-          <div style={s.emptyCard}>
-            <div style={s.emptyIcon}>
-              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg>
-            </div>
-            <h3 style={s.emptyTitle}>No accounts yet</h3>
-            <p style={s.emptySubtitle}>Add your first AWS account to start investigating CloudTrail events with natural language.</p>
-            <button style={{...s.addBtn, float: 'none'}} onClick={() => setShowAddModal(true)}>Add Account</button>
+          <div style={{ textAlign: 'center', padding: '80px 0', color: 'var(--text-dim)', fontSize: '0.85rem' }}>
+            Loading accounts...
           </div>
+        ) : accounts.length === 0 ? (
+          <motion.div
+            className="dash-empty"
+            initial={{ opacity: 0, scale: 0.98 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.5, ease }}
+          >
+            <div className="dash-empty-icon">
+              <Shield size={26} strokeWidth={1.5} />
+            </div>
+            <p style={{ fontSize: '1.2rem', fontWeight: 300, color: 'var(--text-primary)', marginBottom: 8, letterSpacing: '-0.03em' }}>
+              No accounts yet
+            </p>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.88rem', fontWeight: 300, maxWidth: 360, marginBottom: 28 }}>
+              Add your first AWS account to start investigating CloudTrail events with natural language.
+            </p>
+            <button className="dash-add-btn" onClick={() => setShowAddModal(true)}>
+              <Plus size={15} strokeWidth={2} />
+              Add Account
+            </button>
+          </motion.div>
         ) : (
-          <div style={s.grid}>
-            {accounts.map(acc => (
-              <div key={acc.id} style={s.card}
-                onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.boxShadow = 'var(--shadow-md)'; }}
-                onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border-subtle)'; e.currentTarget.style.boxShadow = 'none'; }}>
-                <div style={s.cardTop} />
-                <button style={s.deleteBtn} onClick={() => handleDelete(acc.id)}
-                  onMouseEnter={e => { e.currentTarget.style.color = 'var(--error)'; }}
-                  onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-tertiary)'; }}
-                  title="Remove account">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+          <div className="dash-grid">
+            {accounts.map((acc, i) => (
+              <motion.div
+                key={acc.id}
+                className="dash-card"
+                custom={i}
+                variants={cardVariants}
+                initial="initial"
+                animate="animate"
+              >
+                <button
+                  className="dash-delete-btn"
+                  onClick={() => handleDelete(acc.id)}
+                  title="Remove account"
+                >
+                  <Trash2 size={14} strokeWidth={1.5} />
                 </button>
-                <div style={s.cardNick}>{acc.nickname}</div>
-                <div style={s.cardMeta}>
-                  <span style={{ color: 'var(--text-tertiary)' }}>Region</span>
-                  <span style={s.regionBadge}>{acc.region}</span>
+
+                <div className="dash-card-nick">{acc.nickname}</div>
+
+                <div className="dash-card-meta">
+                  <span style={{ color: 'var(--text-dim)' }}>Region</span>
+                  <span className="dash-region-badge">{acc.region === 'all' ? 'All Regions' : acc.region}</span>
                 </div>
-                <div style={s.cardMeta}>
-                  <span style={{ color: 'var(--text-tertiary)' }}>Verified</span>
-                  <span>{acc.last_verified ? new Date(acc.last_verified).toLocaleString() : 'Never'}</span>
+
+                <div className="dash-card-meta">
+                  <span style={{ color: 'var(--text-dim)' }}>Last verified</span>
+                  <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.72rem' }}>
+                    {acc.last_verified ? new Date(acc.last_verified).toLocaleDateString('en-IN') : 'Never'}
+                  </span>
                 </div>
-                <div style={s.cardFooter}>
+
+                <div className="dash-card-footer">
                   {acc.last_verified ? (
-                    <span style={s.verifiedTag}>
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                    <span className="verified-tag">
+                      <CheckCircle size={13} strokeWidth={2} />
                       Verified
                     </span>
                   ) : (
-                    <span style={s.unverifiedTag}>
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                    <span className="unverified-tag">
+                      <AlertCircle size={13} strokeWidth={1.5} />
                       Unverified
                     </span>
                   )}
                 </div>
-              </div>
+              </motion.div>
             ))}
           </div>
         )}
 
         {accounts.length > 0 && (
-          <div style={{ marginTop: '40px', display: 'flex', justifyContent: 'flex-end' }}>
-            <button style={s.proceedBtn} onClick={() => navigate('/chat')}
-              onMouseEnter={e => { e.currentTarget.style.background = 'rgba(0,255,136,0.2)'; e.currentTarget.style.boxShadow = '0 0 30px rgba(0,255,136,0.15)'; }}
-              onMouseLeave={e => { e.currentTarget.style.background = 'rgba(0,255,136,0.12)'; e.currentTarget.style.boxShadow = 'none'; }}>
+          <motion.div
+            style={{ marginTop: 40, display: 'flex', justifyContent: 'flex-end' }}
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, ease, delay: 0.3 }}
+          >
+            <button className="dash-proceed-btn" onClick={() => navigate('/chat')}>
+              <MessageSquare size={16} strokeWidth={1.5} />
               Start Investigating
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
+              <ArrowRight size={16} strokeWidth={1.5} />
             </button>
-          </div>
+          </motion.div>
         )}
       </main>
 

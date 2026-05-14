@@ -10,14 +10,19 @@ const useAuthStore = create((set, get) => ({
     const response = await api.post('/api/auth/login', { email, password });
     const { access_token, user } = response.data;
     localStorage.setItem('token', access_token);
-    set({ user, token: access_token, isAuthenticated: true });
+    // Deliberately keep isAuthenticated false — caller activates after loader
+    set({ user, token: access_token, isAuthenticated: false });
   },
 
   register: async (email, password) => {
     const response = await api.post('/api/auth/register', { email, password });
     const { access_token, user } = response.data;
     localStorage.setItem('token', access_token);
-    set({ user, token: access_token, isAuthenticated: true });
+    set({ user, token: access_token, isAuthenticated: false });
+  },
+
+  activateAuth: () => {
+    set({ isAuthenticated: true });
   },
 
   logout: () => {
