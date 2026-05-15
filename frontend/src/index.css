@@ -248,6 +248,248 @@ body {
   color: var(--sev-critical);
 }
 
+/* ─── Account filter pills ────────────────────────────────────── */
+.history-filter-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 9px;
+  border-radius: 100px;
+  font-size: 0.65rem;
+  font-weight: 500;
+  font-family: var(--font-sans);
+  color: var(--text-dim);
+  background: transparent;
+  border: 1px solid var(--glass-border);
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 110px;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.history-filter-pill:hover {
+  background: var(--surface);
+  color: var(--text-muted);
+}
+
+.history-filter-pill.active {
+  background: var(--surface-active);
+  border-color: var(--glass-border-cta);
+  color: var(--text-primary);
+}
+
+.filter-pill-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  padding: 0 4px;
+  height: 14px;
+  border-radius: 100px;
+  font-size: 0.55rem;
+  font-weight: 600;
+  background: rgba(255,255,255,0.1);
+  color: var(--text-muted);
+  margin-left: 2px;
+}
+
+/* ─── New chat button ─────────────────────────────────────────── */
+
+.new-chat-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  background: var(--surface);
+  border: 1px solid var(--glass-border);
+  color: var(--text-muted);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.15s, border-color 0.15s, color 0.15s, transform 0.15s var(--ease-apple);
+}
+
+.new-chat-btn:hover:not(:disabled) {
+  background: var(--surface-active);
+  border-color: var(--glass-border-cta);
+  color: var(--text-primary);
+  transform: rotate(90deg);
+}
+
+.new-chat-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+  transform: none;
+}
+
+
+
+/* ─── Chat history list ───────────────────────────────────────── */
+.chat-history-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-height: 0;
+}
+
+.chat-history-empty {
+  padding: 12px 8px;
+  font-size: 0.72rem;
+  color: var(--text-dim);
+  text-align: center;
+  font-style: italic;
+}
+
+/* ─── Individual session item ─────────────────────────────────── */
+.chat-history-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 8px;
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: background 0.15s, border-color 0.15s, transform 0.15s var(--ease-apple);
+  position: relative;
+  min-width: 0;
+}
+
+.chat-history-item:hover {
+  background: var(--surface);
+  border-color: var(--glass-border);
+  transform: translateX(2px);
+}
+
+/* Locked state — query in progress, cannot switch */
+.chat-history-item.locked {
+  opacity: 0.38;
+  cursor: not-allowed;
+  pointer-events: auto; /* keep pointer so tooltip shows */
+}
+
+.chat-history-item.locked:hover {
+  background: transparent;
+  border-color: transparent;
+  transform: none;
+}
+
+.chat-history-item.active {
+  background: var(--surface-active);
+  border-color: var(--glass-border-cta);
+}
+
+.chat-history-icon {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-dim);
+  margin-top: 1px;
+}
+
+.chat-history-item.active .chat-history-icon {
+  color: var(--accent);
+}
+
+.chat-history-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.chat-history-title {
+  font-size: 0.78rem;
+  font-weight: 400;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.3;
+}
+
+.chat-history-item:not(.active) .chat-history-title {
+  color: var(--text-muted);
+}
+
+.chat-history-title-input {
+  font-size: 0.78rem;
+  font-weight: 400;
+  color: var(--text-primary);
+  background: var(--surface-active);
+  border: 1px solid var(--glass-border-cta);
+  border-radius: 4px;
+  padding: 1px 5px;
+  width: 100%;
+  outline: none;
+  font-family: var(--font-sans);
+  line-height: 1.4;
+}
+
+.chat-history-meta {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.65rem;
+  font-family: var(--font-mono);
+  color: var(--text-dim);
+  line-height: 1;
+}
+
+.chat-history-count {
+  margin-left: 4px;
+  background: var(--surface-active);
+  border: 1px solid var(--glass-border);
+  border-radius: 100px;
+  padding: 1px 5px;
+  font-size: 0.6rem;
+  color: var(--text-muted);
+}
+
+/* ─── Per-item hover action buttons ──────────────────────────── */
+.chat-history-actions {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.chat-history-action-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+
+.chat-history-action-btn:hover {
+  background: var(--surface-active);
+  color: var(--text-primary);
+}
+
+.chat-history-action-btn.danger:hover {
+  background: rgba(248, 113, 113, 0.12);
+  color: var(--sev-critical);
+}
+
+/* Make sidebar scroll-ready when history list grows — overflow already set on .sidebar above */
+
+
 /* ─── Main area ───────────────────────────────────────────────── */
 .chat-main {
   flex: 1;

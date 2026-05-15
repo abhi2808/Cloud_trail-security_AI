@@ -23,6 +23,8 @@ async def connect_db():
     await database.users.create_index("email", unique=True)
     # accounts: compound index on (user_id, nickname)
     await database.accounts.create_index([("user_id", 1), ("nickname", 1)])
+    # chats: compound index on (user_id, updated_at) for fast sidebar listing
+    await database.chats.create_index([("user_id", 1), ("updated_at", -1)])
     logger.info("Connected to MongoDB and initialized indexes.")
 
 async def close_db():

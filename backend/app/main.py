@@ -13,6 +13,7 @@ from app.core.config import settings
 from app.api.routes.query import router as query_router
 from app.api.routes.auth import router as auth_router
 from app.api.routes.accounts import router as accounts_router
+from app.api.routes.chats import router as chats_router
 from app.middleware.auth import AuthMiddleware
 from app.db.mongodb import connect_db, close_db
 
@@ -67,4 +68,5 @@ app.add_middleware(
 # Register API routes
 app.include_router(auth_router, prefix="/api/auth", tags=["Authentication"])
 app.include_router(accounts_router, prefix="/api/accounts", tags=["Accounts"])
+app.include_router(chats_router, prefix="/api/chats", tags=["Chat History"])
 app.include_router(query_router, prefix="/api", tags=["CloudTrail Investigation"])

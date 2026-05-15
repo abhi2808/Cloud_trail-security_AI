@@ -6,7 +6,7 @@ const MAX_CHARS = 500;
 
 export default function InputBar() {
   const [text, setText] = useState('');
-  const isLoading = useChatStore((state) => state.isLoading);
+  const isLoading   = useChatStore((state) => state.isLoading);
   const sendMessage = useChatStore((state) => state.sendMessage);
   const textareaRef = useRef(null);
 
@@ -32,7 +32,7 @@ export default function InputBar() {
     }
   };
 
-  const charCount = text.length;
+  const charCount   = text.length;
   const showCounter = charCount > MAX_CHARS * 0.8;
   const isOverLimit = charCount > MAX_CHARS;
 
@@ -45,7 +45,7 @@ export default function InputBar() {
           value={text}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="Ask anything about your AWS account..."
+          placeholder={isLoading ? 'Query in progress…' : 'Ask anything about your AWS account...'}
           disabled={isLoading}
           rows={1}
           id="query-input"

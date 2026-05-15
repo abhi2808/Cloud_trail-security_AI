@@ -71,7 +71,16 @@ const useAccountStore = create((set, get) => ({
   },
 
   selectAccount: (account) => {
-    set({ selectedAccount: account });
+    const current = get().selectedAccount;
+    // No-op: already on this account
+    if (current?.id === account.id) return;
+    // Block switch while a query is running (async import avoids circular dep)
+    import('./chatStore').then(m => {
+      if (m.default.getState().isLoading) return;   // locked — ignore
+      // Commit account switch + clear active chat context
+      set({ selectedAccount: account });
+      m.default.setState({ activeSessionId: null, messages: [], isLoading: false });
+    });
   }
 }));
 
